@@ -12,6 +12,19 @@ ANDROID_JAR="$ANDROID_SDK_ROOT/platforms/android-$PLATFORM_VERSION/android.jar"
 TEMP_DIR="$(mktemp -d)"
 OUTPUT_DIR="$PROJECT_DIR/dist"
 
+# app/build.gradle を唯一の出どころにする。ここを二重管理すると、versionCode が
+# 据え置きのまま APK ができて既存インストールへ上書き更新できなくなる。
+GRADLE_FILE="$PROJECT_DIR/app/build.gradle"
+VERSION_CODE="$(sed -n 's/.*versionCode[[:space:]]\{1,\}\([0-9]\{1,\}\).*/\1/p' "$GRADLE_FILE" | head -1)"
+VERSION_NAME="$(sed -n "s/.*versionName[[:space:]]\{1,\}'\([^']*\)'.*/\1/p" "$GRADLE_FILE" | head -1)"
+MIN_SDK="$(sed -n 's/.*minSdk[[:space:]]\{1,\}\([0-9]\{1,\}\).*/\1/p' "$GRADLE_FILE" | head -1)"
+TARGET_SDK="$(sed -n 's/.*targetSdk[[:space:]]\{1,\}\([0-9]\{1,\}\).*/\1/p' "$GRADLE_FILE" | head -1)"
+: "${VERSION_CODE:?app/build.gradle から versionCode を読めません}"
+: "${VERSION_NAME:?app/build.gradle から versionName を読めません}"
+: "${MIN_SDK:?app/build.gradle から minSdk を読めません}"
+: "${TARGET_SDK:?app/build.gradle から targetSdk を読めません}"
+echo "building ${VERSION_NAME} (versionCode ${VERSION_CODE}, minSdk ${MIN_SDK}, targetSdk ${TARGET_SDK})"
+
 finish() {
   if command -v trash-put >/dev/null 2>&1; then
     trash-put "$TEMP_DIR"
@@ -31,10 +44,10 @@ mkdir -p "$TEMP_DIR/gen" "$TEMP_DIR/classes" "$TEMP_DIR/dex" "$OUTPUT_DIR"
   -o "$TEMP_DIR/base.apk" \
   --manifest "$PROJECT_DIR/app/src/main/AndroidManifest.xml" \
   -I "$ANDROID_JAR" \
-  --min-sdk-version 30 \
-  --target-sdk-version 35 \
-  --version-code 110 \
-  --version-name 1.1.0 \
+  --min-sdk-version "$MIN_SDK" \
+  --target-sdk-version "$TARGET_SDK" \
+  --version-code "$VERSION_CODE" \
+  --version-name "$VERSION_NAME" \
   --java "$TEMP_DIR/gen" \
   -A "$PROJECT_DIR/app/src/main/assets" \
   "$TEMP_DIR/resources.zip"

@@ -41,3 +41,5 @@ Thumbs.db
 *.swp
 *.swo
 
+node_modules/
+package-lock.json

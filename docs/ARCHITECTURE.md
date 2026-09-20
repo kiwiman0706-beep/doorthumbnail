@@ -6,7 +6,7 @@
 
 ```text
 Android MainActivity
-  ├─ WebView: 年表・候補箱・コラージュUI
+  ├─ WebView: 年表・月カード（プレビュー＋ストック）UI
   ├─ AndroidBridge: 写真、予定、印刷、バックアップ
   ├─ SearchActivity: SR5900P検索
   └─ PhotoSearchActivity: 日付範囲付きMediaStore写真選択
@@ -39,7 +39,7 @@ Android MainActivity
 ### index.html / styles.css
 
 - 年×月の年表
-- 候補箱
+- ストック（旧「候補箱」。月カードと同じ画面に置き、採用は取り消せるトグル）
 - 月カード編集
 - 設定、印刷選択ダイアログ
 - スマートフォン／タブレット向けレスポンシブUI

@@ -1,6 +1,6 @@
 # おもいで年表 Android版
 
-家族写真を月ごとのコラージュにまとめるAndroidアプリです。写真共有でためる候補箱、Android端末で同期済みのカレンダー読込、撮影日付付近の写真検索、ZIP一括バックアップ、KING JIM「テプラ」PRO SR5900PへのWi‑Fi直接印刷、公式instax mini Linkアプリへの画像共有に対応します。
+家族写真を月ごとのコラージュにまとめるAndroidアプリです。写真共有でためるストック、Android端末で同期済みのカレンダー読込、撮影日付付近の写真検索、ZIP一括バックアップ、KING JIM「テプラ」PRO SR5900PへのWi‑Fi直接印刷、公式instax mini Linkアプリへの画像共有に対応します。
 
 ## 動作条件
 
@@ -22,6 +22,21 @@
 
 SDK使用許諾の条件に従い、日本国内で使用してください。アプリ内には指定のクレジット表示を実装しています。
 
+### SDKの入手元を紛失した場合
+
+リリース済みAPKにはネイティブライブラリがそのまま含まれているため、`.so` の4ファイルは自分のAPKから取り出せます。
+
+```bash
+unzip -o omoide-timeline-1.1.0.apk 'lib/*' -d extracted
+for abi in arm64-v8a armeabi-v7a x86 x86_64; do
+  mkdir -p "app/src/main/jniLibs/$abi"
+  cp "extracted/lib/$abi/libTepraPrint.so" "app/src/main/jniLibs/$abi/"
+done
+```
+
+ただし `TepraPrint.jar` はAPK内で `classes.dex` へ統合されているため、この方法では復元できません。**JARは公式サイトから取り直す必要があります。**
+取得したSDK一式は、APKの署名鍵と同じ場所に暗号化バックアップしておくことを勧めます。
+
 ## ビルド
 
 Android Studioでプロジェクトを開くか、JDK 17とAndroid SDKを設定してGradleの `assembleRelease` を実行します。外部依存はAndroid Gradle Pluginだけです。
@@ -38,7 +53,7 @@ export JAVA_HOME=/path/to/jdk17
 
 ## データ
 
-写真と編集データはWebView内のIndexedDBへ端末内保存されます。APK版1.1.0のバックアップは、月カード、候補箱、カレンダーから取り込んだ予定、設定、アプリ内の圧縮済み写真を1つの `.omoide.zip` にまとめます。旧版およびPWA版の `.omoide.json` も、APK版の「復元」から読み込めます。
+写真と編集データはWebView内のIndexedDBへ端末内保存されます。APK版1.1.0のバックアップは、月カード、ストック、カレンダーから取り込んだ予定、設定、アプリ内の圧縮済み写真を1つの `.omoide.zip` にまとめます。旧版およびPWA版の `.omoide.json` も、APK版の「復元」から読み込めます。
 
 Androidのカレンダーは読み取り専用です。端末のCalendar Providerへ同期済みのGoogleカレンダー等を対象とし、予定を変更・削除しません。
 
