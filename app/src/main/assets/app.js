@@ -1670,7 +1670,7 @@ async function exportBackup() {
     const payload = {
       app: "omoide-timeline",
       version: 2,
-      appVersion: "1.1.0",
+      appVersion: "1.2.0",
       exportedAt: new Date().toISOString(),
       settings: state.settings,
       records: serializedRecords,
