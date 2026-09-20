@@ -1,3 +1,43 @@
-node_modules/
+# Android Studio / Gradle
+.gradle/
+.idea/
+*.iml
+**/build/
+.externalNativeBuild/
+.cxx/
+captures/
+
+# Local Android SDK configuration
+local.properties
+
+# Build products
+dist/
+manual-build-*/
+*.apk
+*.aab
+*.ap_
+*.idsig
+
+# Signing material — never commit
+*.jks
+*.keystore
+*.p12
+*.pem
+*.key
+SIGNING-INFO.txt
+
+# KING JIM TEPRA-Print SDK — obtain separately after accepting its license
+app/libs/*.jar
+app/src/main/jniLibs/**/*.so
+
+# App data / personal photos / backups
+*.omoide.json
+*.omoide.zip
+omoide-backup-*
+
+# OS/editor files
 .DS_Store
-*.log
+Thumbs.db
+*.swp
+*.swo
+

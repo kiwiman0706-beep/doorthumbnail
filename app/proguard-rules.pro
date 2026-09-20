@@ -1,0 +1,2 @@
+-keep class jp.co.kingjim.tepraprint.sdk.** { *; }
+-dontwarn jp.co.kingjim.tepraprint.sdk.**

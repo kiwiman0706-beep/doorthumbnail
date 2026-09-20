@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#10233f">
+  <meta name="description" content="家族写真を年月ごとにまとめ、instax miniとインクジェット用に仕上げる端末内保存の思い出年表。">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./styles.css">
+  <title>おもいで年表</title>
+</head>
+<body>
+  <div id="app" class="app-shell">
+    <header class="app-bar">
+      <button class="brand" id="homeButton" type="button" aria-label="年表へ戻る">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span><strong>おもいで年表</strong><small>月ごとの家族アルバム</small></span>
+      </button>
+      <div class="app-actions">
+        <span class="local-badge" title="写真は外部へ送信されません"><span aria-hidden="true">●</span> 端末内保存</span>
+        <button id="candidateButton" class="button inbox-nav" type="button">候補箱 <span id="candidateBadge" class="count-badge">0</span></button>
+        <button id="installButton" class="button ghost" type="button" hidden>アプリに追加</button>
+        <button id="backupButton" class="button ghost" type="button">バックアップ</button>
+        <button id="restoreButton" class="button ghost" type="button">復元</button>
+        <button id="settingsButton" class="icon-button" type="button" aria-label="設定">⚙</button>
+      </div>
+      <input id="restoreInput" type="file" accept="application/json,.omoide.json,.zip,.omoide.zip" hidden>
+    </header>
+
+    <main>
+      <section id="timelineView" class="view timeline-view" aria-labelledby="timelineTitle">
+        <div class="view-heading">
+          <div>
+            <p class="eyebrow">FAMILY MEMORY BOARD</p>
+            <h1 id="timelineTitle">家族の月別年表</h1>
+          </div>
+          <div class="heading-actions">
+            <button id="jumpTodayButton" class="button secondary" type="button">今年・今月へ</button>
+            <button id="printSheetButton" class="button primary" type="button">A4でまとめて印刷</button>
+          </div>
+        </div>
+        <div class="timeline-legend" aria-label="状態の凡例">
+          <span><i class="status-dot draft"></i>編集中</span>
+          <span><i class="status-dot exported"></i>書き出し済み</span>
+          <span><i class="status-dot printed"></i>印刷済み</span>
+          <span class="range-label" id="rangeLabel"></span>
+        </div>
+        <div id="timelineScroller" class="timeline-scroller" tabindex="0" aria-label="横が月、縦が年の思い出年表">
+          <div id="timelineGrid" class="timeline-grid"></div>
+        </div>
+        <p class="privacy-note">写真と編集内容は、この端末内に保存されます。定期的にバックアップしてください。</p>
+      </section>
+
+      <section id="candidateView" class="view candidate-view" hidden aria-labelledby="candidateTitle">
+        <div class="candidate-topbar">
+          <button id="candidateBackButton" class="button ghost back-button" type="button">← 年表へ</button>
+          <div>
+            <p class="eyebrow">MEMORY INBOX</p>
+            <h1 id="candidateTitle">思い出の候補箱</h1>
+          </div>
+        </div>
+
+        <div class="candidate-toolbar panel-card">
+          <label>整理する月<input id="candidateMonthInput" type="month" min="1900-01" max="2200-12"></label>
+          <button id="calendarImportButton" class="button secondary native-candidate-action" type="button">カレンダーを読み込む</button>
+          <button id="monthPhotoSearchButton" class="button secondary native-candidate-action" type="button">この月の写真を探す</button>
+          <label class="button primary file-button candidate-add-button">写真を候補に追加<input id="candidatePhotoInput" type="file" accept="image/*" multiple hidden></label>
+        </div>
+
+        <div class="candidate-layout">
+          <aside class="panel-card event-panel">
+            <div class="panel-heading"><h2>カレンダーの出来事</h2><span id="calendarStatus">未読込</span></div>
+            <p class="candidate-help">端末で同期済みのGoogleカレンダーなどを読み込みます。各予定の日付付近から写真を絞り込めます。</p>
+            <div id="calendarEventList" class="calendar-event-list"></div>
+          </aside>
+
+          <section class="panel-card candidate-photo-panel">
+            <div class="panel-heading"><h2>写真候補</h2><span id="candidateMonthCount">0枚</span></div>
+            <div class="candidate-filters" role="group" aria-label="候補の絞り込み">
+              <button class="active" data-candidate-filter="active" type="button">整理中</button>
+              <button data-candidate-filter="keep" type="button">残す</button>
+              <button data-candidate-filter="hold" type="button">保留</button>
+              <button data-candidate-filter="excluded" type="button">外す</button>
+              <button data-candidate-filter="all" type="button">すべて</button>
+            </div>
+            <div id="candidateGrid" class="candidate-grid"></div>
+            <div id="candidateEmpty" class="candidate-empty">
+              <strong>この月の候補はまだありません</strong>
+              <span>ギャラリーの共有メニューで「おもいで年表」を選ぶか、上のボタンから追加できます。</span>
+            </div>
+          </section>
+        </div>
+
+        <div class="candidate-bottom-bar">
+          <span id="candidateSelectionCount">0枚選択</span>
+          <button id="selectKeptButton" class="button ghost" type="button">「残す」を選択</button>
+          <button id="clearCandidateSelectionButton" class="button ghost" type="button">選択解除</button>
+          <button id="addCandidatesButton" class="button primary" type="button" disabled>選択写真を月カードへ追加</button>
+        </div>
+      </section>
+
+      <section id="editorView" class="view editor-view" hidden aria-labelledby="editorTitle">
+        <div class="editor-topbar">
+          <button id="backButton" class="button ghost back-button" type="button">← 年表へ</button>
+          <div class="editor-title-wrap">
+            <p class="eyebrow">MONTH CARD</p>
+            <h1 id="editorTitle">2026年9月</h1>
+          </div>
+          <span id="saveState" class="save-state" role="status">保存済み</span>
+          <div class="editor-actions">
+            <button id="downloadButton" class="button secondary" type="button">画像を保存</button>
+            <button id="shareButton" class="button primary" type="button">instaxへ共有</button>
+          </div>
+        </div>
+
+        <div class="editor-workspace">
+          <div class="canvas-column">
+            <div class="canvas-stage">
+              <canvas id="collageCanvas" width="600" height="800" tabindex="0" aria-label="写真コラージュ編集キャンバス"></canvas>
+              <div id="canvasEmpty" class="canvas-empty">
+                <span class="empty-icon" aria-hidden="true">＋</span>
+                <strong>写真を追加</strong>
+                <small>複数枚まとめて選べます</small>
+              </div>
+            </div>
+            <p class="gesture-hint"><b>写真モード</b>はドラッグでパン、<b>枠モード</b>はドラッグで移動・右下でサイズ変更</p>
+          </div>
+
+          <aside class="control-panel" aria-label="編集設定">
+            <section class="panel-card metadata-card">
+              <div class="panel-heading"><h2>年月と出来事</h2><span id="monthStatusPill" class="status-pill draft">編集中</span></div>
+              <div class="month-fields">
+                <label>年<input id="yearInput" type="number" min="1900" max="2200" inputmode="numeric"></label>
+                <label>月<select id="monthInput"></select></label>
+              </div>
+              <label>出来事<textarea id="eventsInput" rows="2" placeholder="例：沖縄旅行／りさ誕生日"></textarea></label>
+              <label class="check-row"><input id="overlayDateInput" type="checkbox"><span>年月を写真の右下にも表示</span></label>
+            </section>
+
+            <section class="panel-card">
+              <div class="panel-heading"><h2>写真</h2><span id="photoCount">0枚</span></div>
+              <label class="button primary wide file-button">写真を追加<input id="photoInput" type="file" accept="image/*" multiple hidden></label>
+              <button id="openMonthCandidatesButton" class="button secondary wide candidate-shortcut" type="button">この月の候補箱を開く</button>
+              <div id="photoStrip" class="photo-strip" aria-label="追加した写真"></div>
+              <div id="photoControls" class="photo-controls" hidden>
+                <div class="segmented" role="group" aria-label="編集モード">
+                  <button id="photoModeButton" class="active" type="button">写真を動かす</button>
+                  <button id="frameModeButton" type="button">枠を動かす</button>
+                </div>
+                <label class="range-row"><span>ズーム</span><input id="zoomInput" type="range" min="1" max="3" step="0.01" value="1"><output id="zoomOutput">100%</output></label>
+                <div class="mini-actions">
+                  <button id="resetPhotoButton" type="button">位置を戻す</button>
+                  <button id="sendBackButton" type="button">背面へ</button>
+                  <button id="bringFrontButton" type="button">前面へ</button>
+                  <button id="deletePhotoButton" class="danger-text" type="button">削除</button>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel-card">
+              <div class="panel-heading"><h2>並べ方</h2><span>あとから自由に調整可</span></div>
+              <div class="layout-buttons" role="group" aria-label="写真配置">
+                <button data-layout="auto" type="button"><i class="layout-icon auto"></i>自動</button>
+                <button data-layout="focus" type="button"><i class="layout-icon focus"></i>主役＋小</button>
+                <button data-layout="grid2" type="button"><i class="layout-icon two"></i>2列</button>
+                <button data-layout="grid3" type="button"><i class="layout-icon three"></i>3列</button>
+              </div>
+            </section>
+
+            <section class="panel-card tepra-card">
+              <div class="panel-heading"><h2>テプラ</h2><span id="tepraModelLabel">SR5900P</span></div>
+              <div class="label-preview" id="labelPreview"><b>2026.09</b><span>出来事</span></div>
+              <p id="tepraPrinterStatus" class="tepra-printer-status" hidden>SR5900Pは未登録です</p>
+              <div id="nativeTepraActions" class="native-tepra-actions" hidden>
+                <button id="tepraSearchButton" class="button ghost wide" type="button">SR5900Pを探す</button>
+                <button id="tepraPrintButton" class="button primary wide" type="button">このラベルを直接印刷</button>
+              </div>
+              <div class="mini-actions two-columns">
+                <button id="copyDateButton" type="button">年月をコピー</button>
+                <button id="copyEventsButton" type="button">出来事をコピー</button>
+              </div>
+              <button id="exportLabelsButton" class="button secondary wide" type="button">全月のラベル一覧CSV</button>
+              <p id="tepraSdkAttribution" class="tepra-sdk-attribution" hidden>Powerted by <a href="https://www.kingjim.co.jp/download/tepra/sdk/" target="_blank" rel="noopener">KING JIM</a> TEPRA-Print SDK</p>
+            </section>
+
+            <section class="panel-card finish-card">
+              <button id="printCurrentButton" class="button secondary wide" type="button">この月を原寸印刷</button>
+              <button id="markPrintedButton" class="button ghost wide" type="button">印刷済みにする</button>
+            </section>
+          </aside>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="settingsDialog" class="modal-card">
+    <form method="dialog" id="settingsForm">
+      <div class="modal-heading"><div><p class="eyebrow">SETTINGS</p><h2>年表の設定</h2></div><button value="cancel" class="icon-button" aria-label="閉じる">×</button></div>
+      <div class="form-grid two">
+        <label>開始年<input id="startYearInput" type="number" min="1900" max="2200" required></label>
+        <label>終了年<input id="endYearInput" type="number" min="1900" max="2200" required></label>
+      </div>
+      <label>テプラ機種<select id="tepraModelInput"><option>SR5900P</option></select></label>
+      <label>テープ幅<select id="tapeWidthInput"><option value="12">12mm</option><option value="18">18mm</option><option value="24">24mm</option></select></label>
+      <p class="modal-note">APK版は、同じWi‑Fi上のSR5900Pへラベルを直接印刷できます。最初に編集画面の「SR5900Pを探す」で機器を登録してください。</p>
+      <div class="settings-data-actions"><button id="settingsBackupButton" class="button secondary" type="button">全データをバックアップ</button><button id="settingsRestoreButton" class="button secondary" type="button">バックアップから復元</button></div>
+      <div class="modal-actions"><button value="cancel" class="button ghost">キャンセル</button><button id="saveSettingsButton" value="default" class="button primary">保存</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="printDialog" class="modal-card print-dialog">
+    <form method="dialog" id="printForm">
+      <div class="modal-heading"><div><p class="eyebrow">A4 PRINT</p><h2>印刷する月を選択</h2></div><button value="cancel" class="icon-button" aria-label="閉じる">×</button></div>
+      <div class="select-actions"><button id="selectUnprintedButton" type="button">未印刷を選択</button><button id="selectAllButton" type="button">すべて選択</button><button id="clearSelectionButton" type="button">解除</button></div>
+      <div id="printMonthList" class="print-month-list"></div>
+      <p class="modal-note">A4用紙にinstax mini原寸（54×86mm）で9枚ずつ配置します。印刷画面では倍率を100%にしてください。</p>
+      <div class="modal-actions"><button value="cancel" class="button ghost">キャンセル</button><button id="startPrintButton" value="default" class="button primary">印刷画面を開く</button></div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="./app.js" defer></script>
+</body>
+</html>

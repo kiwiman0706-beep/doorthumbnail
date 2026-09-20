@@ -1,0 +1,16 @@
+{
+  "name": "おもいで年表",
+  "short_name": "おもいで年表",
+  "description": "家族写真を年月ごとにまとめて印刷する、端末内保存の月別年表アプリ",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#edf2f7",
+  "theme_color": "#10233f",
+  "lang": "ja",
+  "orientation": "any",
+  "icons": [
+    {"src": "./icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
+    {"src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+  ]
+}

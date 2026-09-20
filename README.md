@@ -1,106 +1,107 @@
-# ドア年表 — instax 思い出マネージャー
+# おもいで年表 / Omoide Timeline
 
-冷蔵庫／玄関ドアの「x軸 = 月、y軸 = 年」instax マグネットフレーム年表を、
-そのまま画面上で管理するための **PWA**（インストール不要・オフライン動作・サーバー不要）。
+家族写真を「横軸＝月、縦軸＝年」の年表として残す、Android向けローカル保存アプリです。日常は写真を候補箱へため、月末に選び抜いた写真を1枚のinstax mini比率のコラージュへ仕上げる運用を想定しています。
 
-1ヶ月ぶんの写真を複数枚まとめて 1 枚の instax に収める作業を、ほぼ自動化します。
+## 主な機能
 
-<!-- 画面: 年表 → コマ編集 → 印刷/ラベル の 3 画面構成 -->
+- Androidの共有メニューから、複数写真を撮影月ごとの候補箱へ保存
+- 端末で同期済みのGoogleカレンダー等を読み込み、写真と出来事を関連付け
+- 月全体、または予定日の前後1日に絞った端末内写真検索
+- 候補を「残す／保留／外す」に分類し、採用写真だけを月カードへ移動
+- 最大24枚の自由配置、パン、ズーム、トリミング、レイヤー順変更
+- instax mini用600×800px画像を公式mini Linkアプリへ共有
+- A4へinstax mini原寸（54×86mm）で9枚ずつ配置して印刷
+- KING JIM「テプラ」PRO SR5900PへのWi-Fi直接印刷
+- 月カード、候補箱、予定、設定、圧縮済み写真を含むZIPバックアップ／復元
 
-## できること
+## 動作条件
 
-| | 内容 |
-|---|---|
-| 📅 **年 × 月の年表** | ドアと同じ配置の一覧。空きマス・未配置の写真枚数がひと目でわかる |
-| 🤖 **自動振り分け** | 取り込んだ写真の EXIF 撮影日から年月を判定し、その月のコマへ自動配置。枚数に応じてレイアウト（1／2／3／4／6／8／9分割）も自動選択 |
-| ✂️ **自由なトリミング** | マスごとにドラッグで移動、ピンチ／ホイールで拡大、90°回転。はみ出さないよう自動でクランプ |
-| 🎨 **レイアウト調整** | 12 種のテンプレート＋分割位置・すき間・外ふち・背景色。タテ／ヨコ切替 |
-| 🔤 **年月の焼込み** | `2026.09` を隅 or 帯で写真に焼き込み（あとから見て何年何月か必ずわかる） |
-| 📤 **instax mini Link へ** | 純正解像度 600×800 で書き出して共有 → instax アプリで印刷 |
-| 🖨 **インクジェット印刷** | A4 に等倍で敷き詰めたシートを生成。「画像部のみ 46×62mm」／「カード全体 54×86mm」＋切り取り線 |
-| 🏷 **テプラ用ラベル** | 出来事テキストを一覧化 → CSV／タブ区切り／クリップボード／共有 |
-| 💾 **完全ローカル** | 写真は端末の IndexedDB のみ。どこにも送信しません。バックアップは JSON 1 ファイル |
+- Android 11（API 30）以上
+- JDK 17
+- Android SDK Platform 35 / Build Tools 35.0.0
+- SR5900P直接印刷を使う場合は、KING JIM TEPRA-Print SDK for Android v1.4.0
+- instax印刷を使う場合は、富士フイルム公式instax mini Linkアプリ
 
-## 使い方
+## 最初のセットアップ
 
-### 1. 置く
+このリポジトリには、ライセンス上再配布すべきでないKING JIMのSDKバイナリを含めていません。公式サイトからSDKを取得し、次へ配置してください。
 
-`index.html` 以下をそのまま HTTPS のどこかに置くだけです（ビルド不要）。
+```text
+app/libs/TepraPrint.jar
+app/src/main/jniLibs/arm64-v8a/libTepraPrint.so
+app/src/main/jniLibs/armeabi-v7a/libTepraPrint.so
+app/src/main/jniLibs/x86/libTepraPrint.so
+app/src/main/jniLibs/x86_64/libTepraPrint.so
+```
 
-- **GitHub Pages**: このリポジトリの Settings → Pages で公開 → スマホで開いて「ホーム画面に追加」
-- **ローカルで試す**: `npm start` → <http://localhost:8080>
+続いて、`local.properties.example`を参考に、各自の環境だけで使う`local.properties`を作成します。
 
-> Service Worker と「ホーム画面に追加」は HTTPS（または localhost）が必要です。
+```properties
+sdk.dir=/absolute/path/to/Android/sdk
+```
 
-初回は空の年表が出ます。動きを先に見たい場合は **「サンプルで試す」** を押すと、
-ダミー写真で 3 年ぶんの年表が自動生成されます（あとで設定から未使用写真をまとめて削除できます）。
+`local.properties`、SDKバイナリ、APK、署名鍵は`.gitignore`で除外されます。
 
-### 2. 毎月のながれ
+## ビルド
 
-1. **＋写真取込** でその月の写真をまとめて選ぶ
-   → EXIF の撮影日で年月ごとのコマに自動配置される
-2. 気になるコマをタップして、**トリミング・レイアウト**を微調整
-3. **文字**タブで「テプラ用ラベル」に出来事を書いておく
-4. 印刷する
-   - instax で刷る → **出力** タブ →「共有」→ instax mini Link アプリ
-   - インクジェットで刷る → **印刷 / ラベル** →「未印刷のコマ」→ プレビュー → 印刷
-5. **印刷 / ラベル → テプラ用ラベル** で、その月ぶんのラベル文字列をまとめて出力
-
-### 3. 印刷の設定（重要）
-
-インクジェットの場合、プリンタ側で必ず
-
-- 用紙：**A4**
-- 倍率：**100%（等倍）／「用紙に合わせる」オフ／フチなし印刷オフ**
-
-にしてください。倍率がかかるとマグネットフレームに収まりません。
-最初の 1 枚は定規で 46mm / 62mm を実測して確認するのがおすすめです。
-
-## instax mini Link・テプラとの連携について
-
-**要点：PWA から BLE で直接印刷することはできません。実用上は「共有」経由が正解です。**
-詳細と、ネイティブ APK にした場合に何が変わるかは **[docs/PRINTING.md](docs/PRINTING.md)** にまとめました。
-
-## 開発
+Android Studioで開いてビルドするか、コマンドラインから実行します。
 
 ```bash
-npm start     # ローカルサーバー (http://localhost:8080)
-npm run check # 全 JS の構文チェック
-npm test      # Playwright ヘッドレスでの通し動作テスト
-npm run icons # アイコン PNG の再生成
-
-# サンドボックス（claude.ai Artifacts など、<head> をホスト側が用意する環境）向けの単一ページ
-node scripts/build-artifact.mjs out.html
+./gradlew assembleDebug
+./gradlew assembleRelease
 ```
 
-> サンドボックス内ではファイル保存・共有・`window.print()` がブロックされます。
-> 保存系は画像を表示して長押し保存に切り替わります（iOS Safari でも同じ経路を通ります）。
+Google Mavenへ接続できない環境では、JDK 17とAndroid SDKを指定して、同梱の手動ビルドスクリプトも利用できます。
 
-ビルドツール・依存パッケージはゼロです（テストのみ Playwright を使用）。
-
-### 構成
-
-```
-index.html            3 画面（年表 / 編集 / 出力）のシェル
-css/app.css           全スタイル（印刷用 @media print を含む）
-js/db.js              IndexedDB ラッパー
-js/model.js           コマのデータ構造・instax 実寸・レイアウトテンプレート
-js/photos.js          取り込み・EXIF 日付・縮小・ビットマップキャッシュ
-js/render.js          共通レンダラ（プレビュー / サムネ / 書き出し / 印刷で同一コード）
-js/autoslot.js        撮影年月に応じた自動配置
-js/editor.js          コマ編集 UI（パン・ズーム・回転）
-js/timeline.js        年 × 月グリッド
-js/output.js          A4 シート組版・テプラ用ラベル生成
-js/backup.js          JSON バックアップ / 復元 / 未使用写真の削除
-js/app.js             画面遷移と全体の配線
-sw.js                 オフライン用キャッシュ
+```bash
+export ANDROID_SDK_ROOT=/path/to/android-sdk
+export JAVA_HOME=/path/to/jdk17
+./build-manual.sh
 ```
 
-`js/render.js` の `renderFrame()` は、画面プレビュー・一覧サムネ・instax 書き出し・
-A4 シートのすべてで共有しています。**画面で見たものがそのまま刷られます。**
+詳しくは[README-BUILD.md](README-BUILD.md)を参照してください。
 
-## データの扱い
+## リポジトリ構成
 
-写真も編集内容も端末内の IndexedDB に保存され、外部に送信されません。
-ブラウザのサイトデータを消すと失われるので、**設定 → バックアップを書き出す** を定期的にどうぞ。
-バックアップは写真を含む JSON 1 ファイルです（写真枚数に比例して数十 MB〜になります）。
+```text
+app/src/main/java/          Androidネイティブ部分、WebView連携、印刷、写真検索
+app/src/main/assets/        年表・候補箱・コラージュ編集UI（HTML/CSS/JavaScript）
+app/src/main/res/           アイコン、文字列、テーマ
+docs/                       設計、プライバシー、リリース手順
+.github/workflows/          GitHub Actionsの軽量ソース検査
+build-manual.sh             Gradleに依存しない手動APKビルド
+```
+
+詳しい役割は[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)、コミット対象の一覧は[docs/REPOSITORY_FILES.md](docs/REPOSITORY_FILES.md)に記載しています。
+
+## GitHubへ登録する
+
+ZIPを展開したフォルダーで、次のように開始できます。
+
+```bash
+git init
+git add .
+git commit -m "Initial import: Omoide Timeline 1.1.0"
+git branch -M main
+git remote add origin <GitHubで作成した空リポジトリのURL>
+git push -u origin main
+```
+
+まずはPrivateリポジトリがおすすめです。公開する場合は、KING JIM SDKの利用条件、写真やバックアップの混入、採用するソースライセンスを改めて確認してください。
+
+## データとプライバシー
+
+写真と編集内容は端末内のIndexedDBへ保存されます。本アプリ自身はクラウド同期を行いません。バックアップはAndroidの`Downloads/OmoideTimeline`へ書き出します。カレンダーは読み取り専用で、予定の追加・変更・削除は行いません。
+
+## instax mini Linkについて
+
+本アプリは完成画像を公式mini Linkアプリへ共有します。mini Link本体へ独自Bluetooth通信で直接印刷する実装ではありません。
+
+## 重要：署名鍵
+
+既存APKへ上書き更新するには、初回リリースと同じ署名鍵が必要です。署名鍵とパスワードはGitHubへコミットせず、パスワード管理ツールと暗号化バックアップで別管理してください。手順は[docs/RELEASING.md](docs/RELEASING.md)にあります。
+
+## ライセンス
+
+このZIPではソースコードの公開ライセンスを指定していません。Privateリポジトリでの管理には支障ありません。Publicリポジトリとして第三者へ利用・改変・再配布を許可する場合は、目的に合うライセンスを選んで`LICENSE`を追加してください。
+

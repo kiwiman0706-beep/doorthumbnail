@@ -1,0 +1,49 @@
+name: Source quality checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Check JavaScript syntax
+        run: node --check app/src/main/assets/app.js
+
+      - name: Check XML syntax
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+
+          for path in [Path("app/src/main/AndroidManifest.xml"), *Path("app/src/main/res").rglob("*.xml")]:
+              ET.parse(path)
+              print(f"OK {path}")
+          PY
+
+      - name: Reject private or non-redistributable files
+        run: |
+          test ! -f local.properties
+          test ! -f app/libs/TepraPrint.jar
+          if find app/src/main/jniLibs -type f -name '*.so' -print -quit | grep -q .; then
+            echo "Native SDK library must not be committed"
+            exit 1
+          fi
+          if find . -type f \( -name '*.p12' -o -name '*.jks' -o -name '*.keystore' -o -name '*.omoide.zip' -o -name '*.omoide.json' \) -print -quit | grep -q .; then
+            echo "Private file detected"
+            exit 1
+          fi
+
