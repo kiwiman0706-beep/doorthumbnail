@@ -24,12 +24,11 @@ SHA-256: 1B:D8:38:CB:54:29:9E:FF:9A:72:BF:1F:33:1C:18:AF:12:C0:C4:D1:8C:C5:89:8E
 
 ## 1. バージョンを更新
 
-次の2か所を同じ値へ更新します。
+`app/build.gradle`の`versionCode`／`versionName`だけを更新します。
+`build-manual.sh`はここから読むので、二重管理は不要です。
 
-- `app/build.gradle`の`versionCode`／`versionName`
-- `build-manual.sh`の`--version-code`／`--version-name`
-
-変更内容を`CHANGELOG.md`へ追記します。
+`app/src/main/assets/app.js`の`appVersion`（バックアップに記録される版）と
+`CHANGELOG.md`もあわせて更新します。
 
 ## 2. 検査
 
