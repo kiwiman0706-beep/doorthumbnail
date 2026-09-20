@@ -9,6 +9,7 @@ import { initEditor, openFrame, currentFrame, flushSave, redraw } from './editor
 import { initTimeline, refresh as refreshTimeline, loadRange, extendRangeTo } from './timeline.js';
 import { initOutput, markPrinted } from './output.js';
 import { exportBackup, importBackup, purgeUnused, usageText } from './backup.js';
+import { loadSamples, isEmpty } from './sample.js';
 import { $, showView, toast, busy, download, shareFiles } from './ui.js';
 
 /* ---------------- routing ---------------- */
@@ -16,6 +17,11 @@ import { $, showView, toast, busy, download, shareFiles } from './ui.js';
 function goTimeline() {
   showView('view-timeline');
   history.replaceState({ v: 'timeline' }, '');
+  syncEmptyState();
+}
+
+async function syncEmptyState() {
+  $('#empty-state').hidden = !(await isEmpty());
 }
 
 async function goEditor(y, m, idx = 0) {
@@ -85,6 +91,7 @@ async function intake() {
   }
   busy(false);
   await refreshTimeline();
+  await syncEmptyState();
   toast(msg, 4000);
 }
 
@@ -128,6 +135,15 @@ async function boot() {
   initOutput();
 
   $('#btn-import').addEventListener('click', intake);
+  $('#btn-sample').addEventListener('click', async () => {
+    busy('サンプルを作成中…');
+    const n = await loadSamples((i, t) => busy(`サンプルを作成中… ${i}/${t}`));
+    busy(false);
+    await loadRange();
+    await refreshTimeline();
+    await syncEmptyState();
+    toast(`ダミー写真 ${n}枚 で年表を作りました`, 4000);
+  });
   $('#btn-output').addEventListener('click', goOutput);
   $('#btn-settings').addEventListener('click', openSettings);
   $('#ed-back').addEventListener('click', leaveEditor);

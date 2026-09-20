@@ -32,6 +32,9 @@
 
 > Service Worker と「ホーム画面に追加」は HTTPS（または localhost）が必要です。
 
+初回は空の年表が出ます。動きを先に見たい場合は **「サンプルで試す」** を押すと、
+ダミー写真で 3 年ぶんの年表が自動生成されます（あとで設定から未使用写真をまとめて削除できます）。
+
 ### 2. 毎月のながれ
 
 1. **＋写真取込** でその月の写真をまとめて選ぶ
@@ -65,7 +68,13 @@ npm start     # ローカルサーバー (http://localhost:8080)
 npm run check # 全 JS の構文チェック
 npm test      # Playwright ヘッドレスでの通し動作テスト
 npm run icons # アイコン PNG の再生成
+
+# サンドボックス（claude.ai Artifacts など、<head> をホスト側が用意する環境）向けの単一ページ
+node scripts/build-artifact.mjs out.html
 ```
+
+> サンドボックス内ではファイル保存・共有・`window.print()` がブロックされます。
+> 保存系は画像を表示して長押し保存に切り替わります（iOS Safari でも同じ経路を通ります）。
 
 ビルドツール・依存パッケージはゼロです（テストのみ Playwright を使用）。
 

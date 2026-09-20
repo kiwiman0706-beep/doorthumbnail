@@ -21,9 +21,60 @@ export function busy(text) {
   el.hidden = false;
 }
 
+function framed() {
+  try { return window.top !== window.self; } catch { return true; }
+}
+
+/**
+ * Sandboxed iframes and iOS Safari ignore `<a download>`, so the file would
+ * vanish silently. Show it instead and let the viewer save it by hand.
+ */
+function saveFallback(blob, filename) {
+  const box = document.createElement('div');
+  box.className = 'saveover';
+  const note = document.createElement('p');
+
+  if (/^image\//.test(blob.type)) {
+    const url = URL.createObjectURL(blob);
+    const img = document.createElement('img');
+    img.src = url;
+    img.alt = filename;
+    box.appendChild(img);
+    note.textContent = 'この環境ではファイル保存がブロックされています。画像を長押し（PC は右クリック）して保存してください。';
+    box.addEventListener('remove', () => URL.revokeObjectURL(url));
+  } else {
+    const pre = document.createElement('pre');
+    blob.text().then((t) => { pre.textContent = t.slice(0, 20000); });
+    box.appendChild(pre);
+    note.textContent = `この環境ではファイル保存がブロックされています（${filename}）。下の「コピー」から取り出してください。`;
+  }
+  box.appendChild(note);
+
+  const row = document.createElement('div');
+  row.className = 'row';
+  if (!/^image\//.test(blob.type)) {
+    const c = document.createElement('button');
+    c.className = 'btn';
+    c.textContent = '📋 コピー';
+    c.addEventListener('click', async () => {
+      toast((await copyText(await blob.text())) ? 'コピーしました' : 'コピーできませんでした');
+    });
+    row.appendChild(c);
+  }
+  const close = document.createElement('button');
+  close.className = 'btn primary';
+  close.textContent = '閉じる';
+  close.addEventListener('click', () => box.remove());
+  row.appendChild(close);
+  box.appendChild(row);
+
+  document.body.appendChild(box);
+}
+
 export function download(blob, filename) {
-  const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
+  if (framed() || !('download' in a)) { saveFallback(blob, filename); return; }
+  const url = URL.createObjectURL(blob);
   a.href = url;
   a.download = filename;
   document.body.appendChild(a);

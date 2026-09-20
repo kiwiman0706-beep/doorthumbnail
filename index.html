@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=5">
 <meta name="theme-color" content="#f7f5f1">
-<title>ドア年表 — instax 思い出マネージャー</title>
+<title>instax ドア年表</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
@@ -37,6 +37,13 @@
     </div>
     <span class="spacer"></span>
     <span id="stats" class="muted"></span>
+  </div>
+
+  <div id="empty-state" class="empty-state" hidden>
+    <h2>まだ写真がありません</h2>
+    <p>「＋ 写真取込」で撮った写真を選ぶと、撮影日から年月ごとのコマに自動で並びます。<br>
+       先に動きを見たい場合は、ダミー写真で 3 年ぶんの年表を作れます。</p>
+    <button id="btn-sample" class="btn primary">サンプルで試す</button>
   </div>
 
   <div id="grid-wrap" class="grid-wrap">
