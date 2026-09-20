@@ -1,0 +1,13 @@
+{
+  "name": "doorthumbnail",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "instax mini の思い出年表を作る PWA（ビルド不要）",
+  "scripts": {
+    "start": "node scripts/serve.mjs",
+    "icons": "node scripts/make-icons.mjs",
+    "check": "node --check js/app.js && node --check js/autoslot.js && node --check js/db.js && node --check js/model.js && node --check js/photos.js && node --check js/render.js && node --check js/editor.js && node --check js/timeline.js && node --check js/output.js && node --check js/backup.js && node --check js/ui.js && node --check sw.js",
+    "test": "node scripts/smoke.mjs"
+  }
+}

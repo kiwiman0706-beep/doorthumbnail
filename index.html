@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=5">
+<meta name="theme-color" content="#f7f5f1">
+<title>ドア年表 — instax 思い出マネージャー</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ドア年表">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+<!-- ============ 年表ビュー ============ -->
+<section id="view-timeline" class="view active">
+  <header class="bar">
+    <div class="bar-title">ドア年表</div>
+    <div class="bar-actions">
+      <button id="btn-import" class="btn primary">＋ 写真取込</button>
+      <button id="btn-output" class="btn">印刷 / ラベル</button>
+      <button id="btn-settings" class="btn icon" aria-label="設定">⚙</button>
+    </div>
+  </header>
+
+  <div class="subbar">
+    <label>表示年：
+      <input type="number" id="year-from" class="num" min="1900" max="2999" step="1">
+      〜
+      <input type="number" id="year-to" class="num" min="1900" max="2999" step="1">
+    </label>
+    <div class="seg" id="zoomlv">
+      <button data-v="compact">12ヶ月表示</button>
+      <button data-v="large" class="on">大きく</button>
+    </div>
+    <span class="spacer"></span>
+    <span id="stats" class="muted"></span>
+  </div>
+
+  <div id="grid-wrap" class="grid-wrap">
+    <table id="grid" class="grid"></table>
+  </div>
+
+  <p class="hint">
+    マスをタップすると、その月の instax を編集できます。写真を取り込むと撮影日 (EXIF) から自動で該当月に振り分けられます。
+  </p>
+</section>
+
+<!-- ============ エディタビュー ============ -->
+<section id="view-editor" class="view">
+  <header class="bar">
+    <button id="ed-back" class="btn icon" aria-label="戻る">←</button>
+    <div class="bar-title" id="ed-title">—</div>
+    <div class="bar-actions">
+      <button id="ed-prev" class="btn icon" aria-label="前の月">‹</button>
+      <button id="ed-next" class="btn icon" aria-label="次の月">›</button>
+      <button id="ed-delete" class="btn icon danger" aria-label="このコマを削除">🗑</button>
+    </div>
+  </header>
+
+  <div class="editor">
+    <div class="stage" id="stage">
+      <canvas id="canvas"></canvas>
+    </div>
+
+    <div class="cellbar" id="cellbar" hidden>
+      <button class="btn sm" data-act="zoom-out">−</button>
+      <input type="range" id="cell-zoom" min="100" max="400" value="100" step="1">
+      <button class="btn sm" data-act="zoom-in">＋</button>
+      <button class="btn sm" data-act="rot-l">⟲</button>
+      <button class="btn sm" data-act="rot-r">⟳</button>
+      <button class="btn sm" data-act="fit">リセット</button>
+      <button class="btn sm danger" data-act="clear">外す</button>
+    </div>
+
+    <nav class="tabs" id="tabs">
+      <button class="tab active" data-tab="photos">写真</button>
+      <button class="tab" data-tab="layout">レイアウト</button>
+      <button class="tab" data-tab="text">文字</button>
+      <button class="tab" data-tab="out">出力</button>
+    </nav>
+
+    <div class="panels">
+      <!-- 写真 -->
+      <div class="panel active" data-panel="photos">
+        <div class="row">
+          <button id="ed-add" class="btn primary sm">＋ 写真を追加</button>
+          <label class="chk"><input type="checkbox" id="tray-thismonth" checked> この月だけ</label>
+          <button id="ed-autofill" class="btn sm">自動配置</button>
+        </div>
+        <div id="tray" class="tray"></div>
+        <p class="hint sm">マスを選んでから写真をタップすると入ります。マス内をドラッグで移動、ピンチ / ホイールで拡大。</p>
+      </div>
+
+      <!-- レイアウト -->
+      <div class="panel" data-panel="layout">
+        <div class="row">
+          <span class="lbl">向き</span>
+          <div class="seg" id="orient">
+            <button data-v="portrait" class="on">タテ</button>
+            <button data-v="landscape">ヨコ</button>
+          </div>
+        </div>
+        <div id="layouts" class="layouts"></div>
+        <label class="slider" id="split-wrap"><span>分割位置</span><input type="range" id="ly-split" min="20" max="80" value="50"></label>
+        <label class="slider"><span>すき間</span><input type="range" id="ly-gap" min="0" max="8" step="0.5" value="1.5"></label>
+        <label class="slider"><span>外ふち</span><input type="range" id="ly-pad" min="0" max="10" step="0.5" value="0"></label>
+        <div class="row">
+          <span class="lbl">背景</span>
+          <input type="color" id="ly-bg" value="#ffffff">
+          <button class="btn sm" data-bg="#ffffff">白</button>
+          <button class="btn sm" data-bg="#111111">黒</button>
+          <button class="btn sm" data-bg="#f2ede4">生成</button>
+        </div>
+      </div>
+
+      <!-- 文字 -->
+      <div class="panel" data-panel="text">
+        <div class="row">
+          <span class="lbl">年月の焼込み</span>
+          <div class="seg" id="stamp">
+            <button data-v="none">なし</button>
+            <button data-v="corner" class="on">隅</button>
+            <button data-v="bar">帯</button>
+          </div>
+        </div>
+        <label class="chk"><input type="checkbox" id="cap-show"> 写真の中にキャプションを入れる</label>
+        <textarea id="cap-text" rows="2" placeholder="例：ハワイ旅行 / 娘 初めての海"></textarea>
+        <div class="row">
+          <label class="slider grow"><span>大きさ</span><input type="range" id="cap-size" min="3" max="14" step="0.5" value="7"></label>
+          <input type="color" id="cap-color" value="#ffffff">
+        </div>
+        <hr>
+        <p class="lbl">テプラ用ラベル（写真には入りません）</p>
+        <input type="text" id="lb-title" placeholder="1行目：出来事（例：ハワイ旅行）">
+        <input type="text" id="lb-note" placeholder="2行目：補足（例：家族4人・ワイキキ）">
+        <p class="hint sm">「印刷 / ラベル」画面から、まとめて CSV・テキストで書き出せます。</p>
+      </div>
+
+      <!-- 出力 -->
+      <div class="panel" data-panel="out">
+        <div class="row wrap">
+          <button id="out-share" class="btn primary">📤 共有（instax mini Link アプリへ）</button>
+          <button id="out-save" class="btn">⬇ 画像を保存（600×800）</button>
+          <button id="out-save2x" class="btn">⬇ 高解像度（1200×1600）</button>
+        </div>
+        <label class="chk"><input type="checkbox" id="out-printed"> 印刷済みにする</label>
+        <p class="hint sm">
+          instax mini Link には、書き出した画像を純正アプリへ「共有」して印刷します（アプリ内で
+          <b>プリント範囲を触らず、そのまま</b>印刷すると、この画面の見た目どおりに出ます）。<br>
+          インクジェットでまとめて印刷する場合は「印刷 / ラベル」画面を使ってください。
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 出力ビュー ============ -->
+<section id="view-output" class="view">
+  <header class="bar">
+    <button id="out-back" class="btn icon" aria-label="戻る">←</button>
+    <div class="bar-title">印刷 / ラベル</div>
+  </header>
+
+  <nav class="tabs" id="otabs">
+    <button class="tab active" data-otab="sheet">インクジェット印刷</button>
+    <button class="tab" data-otab="label">テプラ用ラベル</button>
+  </nav>
+
+  <div class="panels pad">
+    <div class="panel active" data-opanel="sheet">
+      <div class="row">
+        <span class="lbl">対象</span>
+        <select id="sh-scope">
+          <option value="unprinted">未印刷のコマ</option>
+          <option value="all">すべてのコマ</option>
+          <option value="year">指定の年だけ</option>
+        </select>
+        <input type="number" id="sh-year" class="num" step="1">
+      </div>
+      <div class="row">
+        <span class="lbl">サイズ</span>
+        <div class="seg" id="sh-size">
+          <button data-v="image" class="on">画像部のみ 46×62mm</button>
+          <button data-v="card">カード全体 54×86mm</button>
+        </div>
+      </div>
+      <label class="chk"><input type="checkbox" id="sh-marks" checked> 切り取り線を印刷する</label>
+      <label class="chk"><input type="checkbox" id="sh-cap"> カード下の白フチに出来事を印刷する（テプラの代わり）</label>
+      <div class="row">
+        <button id="sh-build" class="btn primary">プレビューを作る</button>
+        <button id="sh-print" class="btn" disabled>🖨 印刷</button>
+        <span id="sh-count" class="muted"></span>
+      </div>
+      <p class="hint sm">
+        プリンタ設定で用紙 A4・<b>拡大縮小 100%（等倍 / フチなしオフ）</b>にしてください。倍率がかかるとマグネットフレームに収まりません。
+      </p>
+      <div id="sheet" class="sheet-preview"></div>
+    </div>
+
+    <div class="panel" data-opanel="label">
+      <div class="row">
+        <span class="lbl">対象</span>
+        <select id="lb-scope">
+          <option value="unlabeled">ラベル未出力</option>
+          <option value="all">すべて</option>
+          <option value="year">指定の年だけ</option>
+        </select>
+        <input type="number" id="lb-year" class="num" step="1">
+      </div>
+      <div class="row">
+        <span class="lbl">書式</span>
+        <select id="lb-format">
+          <option value="2line">2行（1行目:年月+出来事 / 2行目:補足）</option>
+          <option value="1line">1行（年月 出来事 補足）</option>
+          <option value="ym">年月のみ</option>
+        </select>
+      </div>
+      <div class="row wrap">
+        <button id="lb-build" class="btn primary">作成</button>
+        <button id="lb-csv" class="btn" disabled>⬇ CSV (Shift_JIS 互換 BOM付 UTF-8)</button>
+        <button id="lb-copy" class="btn" disabled>📋 コピー</button>
+        <button id="lb-share" class="btn" disabled>📤 共有</button>
+      </div>
+      <textarea id="lb-out" rows="14" spellcheck="false" placeholder="ここに書き出されます"></textarea>
+      <p class="hint sm">
+        テプラ純正 PC ソフト（SPC10 等）や「TEPRA LINK」アプリの差し込み印刷に、この CSV を読み込ませてください。
+        スマホのみで使う場合は「コピー」してアプリに貼り付けるのが速いです。
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 設定 ============ -->
+<dialog id="dlg-settings">
+  <form method="dialog">
+    <h2>設定とバックアップ</h2>
+    <label class="chk"><input type="checkbox" id="set-autoslot" checked> 取り込んだ写真を撮影年月のコマへ自動で置く</label>
+    <p class="row wrap">
+      <button id="bk-export" class="btn" type="button">⬇ バックアップを書き出す</button>
+      <button id="bk-import" class="btn" type="button">⬆ バックアップを読み込む</button>
+    </p>
+    <p class="row wrap">
+      <button id="bk-purge" class="btn danger" type="button">未使用の写真を削除</button>
+    </p>
+    <p id="set-usage" class="muted sm"></p>
+    <menu><button class="btn" value="close">閉じる</button></menu>
+  </form>
+</dialog>
+
+<div id="toast" class="toast" hidden></div>
+<div id="busy" class="busy" hidden><div class="spin"></div><span id="busy-text">処理中…</span></div>
+
+<input type="file" id="file-input" accept="image/*" multiple hidden>
+<input type="file" id="restore-input" accept="application/json,.json" hidden>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
