@@ -22,6 +22,21 @@
 
 SDK使用許諾の条件に従い、日本国内で使用してください。アプリ内には指定のクレジット表示を実装しています。
 
+### SDKの入手元を紛失した場合
+
+リリース済みAPKにはネイティブライブラリがそのまま含まれているため、`.so` の4ファイルは自分のAPKから取り出せます。
+
+```bash
+unzip -o omoide-timeline-1.1.0.apk 'lib/*' -d extracted
+for abi in arm64-v8a armeabi-v7a x86 x86_64; do
+  mkdir -p "app/src/main/jniLibs/$abi"
+  cp "extracted/lib/$abi/libTepraPrint.so" "app/src/main/jniLibs/$abi/"
+done
+```
+
+ただし `TepraPrint.jar` はAPK内で `classes.dex` へ統合されているため、この方法では復元できません。**JARは公式サイトから取り直す必要があります。**
+取得したSDK一式は、APKの署名鍵と同じ場所に暗号化バックアップしておくことを勧めます。
+
 ## ビルド
 
 Android Studioでプロジェクトを開くか、JDK 17とAndroid SDKを設定してGradleの `assembleRelease` を実行します。外部依存はAndroid Gradle Pluginだけです。
