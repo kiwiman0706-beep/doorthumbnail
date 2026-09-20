@@ -18,22 +18,20 @@ const DB_NAME = "omoide-timeline";
 const DB_VERSION = 2;
 
 const els = {
-  timelineView: $("#timelineView"), candidateView: $("#candidateView"), editorView: $("#editorView"), timelineGrid: $("#timelineGrid"),
+  timelineView: $("#timelineView"), editorView: $("#editorView"), timelineGrid: $("#timelineGrid"),
   timelineScroller: $("#timelineScroller"), rangeLabel: $("#rangeLabel"), homeButton: $("#homeButton"),
-  candidateButton: $("#candidateButton"), candidateBadge: $("#candidateBadge"), candidateBackButton: $("#candidateBackButton"),
-  candidateMonthInput: $("#candidateMonthInput"), calendarImportButton: $("#calendarImportButton"),
-  monthPhotoSearchButton: $("#monthPhotoSearchButton"), candidatePhotoInput: $("#candidatePhotoInput"),
+  stockJumpButton: $("#stockJumpButton"), stockBadge: $("#stockBadge"),
+  stockGrid: $("#stockGrid"), stockEmpty: $("#stockEmpty"), stockCount: $("#stockCount"),
+  gatherPanel: $("#gatherPanel"),
+  calendarImportButton: $("#calendarImportButton"),
+  monthPhotoSearchButton: $("#monthPhotoSearchButton"),
   calendarStatus: $("#calendarStatus"), calendarEventList: $("#calendarEventList"),
-  candidateMonthCount: $("#candidateMonthCount"), candidateGrid: $("#candidateGrid"), candidateEmpty: $("#candidateEmpty"),
-  candidateSelectionCount: $("#candidateSelectionCount"), selectKeptButton: $("#selectKeptButton"),
-  clearCandidateSelectionButton: $("#clearCandidateSelectionButton"), addCandidatesButton: $("#addCandidatesButton"),
   jumpTodayButton: $("#jumpTodayButton"), printSheetButton: $("#printSheetButton"),
   backupButton: $("#backupButton"), restoreButton: $("#restoreButton"), restoreInput: $("#restoreInput"),
   settingsButton: $("#settingsButton"), installButton: $("#installButton"),
   editorTitle: $("#editorTitle"), backButton: $("#backButton"), saveState: $("#saveState"),
   canvas: $("#collageCanvas"), canvasEmpty: $("#canvasEmpty"), photoInput: $("#photoInput"),
-  openMonthCandidatesButton: $("#openMonthCandidatesButton"),
-  photoStrip: $("#photoStrip"), photoCount: $("#photoCount"), photoControls: $("#photoControls"),
+  photoCount: $("#photoCount"), photoControls: $("#photoControls"),
   photoModeButton: $("#photoModeButton"), frameModeButton: $("#frameModeButton"),
   zoomInput: $("#zoomInput"), zoomOutput: $("#zoomOutput"), resetPhotoButton: $("#resetPhotoButton"),
   sendBackButton: $("#sendBackButton"), bringFrontButton: $("#bringFrontButton"), deletePhotoButton: $("#deletePhotoButton"),
@@ -66,15 +64,13 @@ const state = {
   pointer: null,
   saveTimer: null,
   gridUrls: [],
-  candidateUrls: [],
+  stockUrls: new Map(),
   printUrls: [],
   installPrompt: null,
   nativeInfo: null,
   webMcpAbort: null,
   dbReady: false,
   candidateMonthKey: monthKey(currentDate.getFullYear(), currentDate.getMonth() + 1),
-  candidateFilter: "active",
-  selectedCandidates: new Set(),
   pendingNativeImages: [],
   nativeIngestChain: Promise.resolve()
 };
@@ -183,7 +179,6 @@ async function init() {
     option.textContent = `${month}月`;
     els.monthInput.append(option);
   }
-  els.candidateMonthInput.value = state.candidateMonthKey;
   bindEvents();
   initAndroidIntegration();
   try {
@@ -208,8 +203,8 @@ async function init() {
     const pendingImages = state.pendingNativeImages.splice(0);
     for (const payload of pendingImages) await ingestNativeImage(payload, false);
     renderTimeline();
-    renderCandidateBadge();
-    if (pendingImages.length) await openCandidateView(monthForTimestamp(pendingImages[pendingImages.length - 1].takenAt));
+    renderStockBadge();
+    if (pendingImages.length) renderTimeline();
     registerWebMcp();
   } catch (error) {
     console.error(error);
@@ -222,21 +217,13 @@ async function init() {
 function bindEvents() {
   els.homeButton.addEventListener("click", goHome);
   els.backButton.addEventListener("click", closeEditor);
-  els.candidateButton.addEventListener("click", () => openCandidateView(state.record?.key || state.candidateMonthKey));
-  els.candidateBackButton.addEventListener("click", closeCandidateView);
-  els.candidateMonthInput.addEventListener("change", changeCandidateMonth);
+  els.stockJumpButton.addEventListener("click", jumpToPendingStock);
   els.calendarImportButton.addEventListener("click", importCalendarMonth);
   els.monthPhotoSearchButton.addEventListener("click", searchCandidateMonthPhotos);
-  els.candidatePhotoInput.addEventListener("change", importCandidatePhotos);
-  els.openMonthCandidatesButton.addEventListener("click", () => openCandidateView(state.record?.key));
-  $$('[data-candidate-filter]').forEach(button => button.addEventListener("click", () => setCandidateFilter(button.dataset.candidateFilter)));
-  els.selectKeptButton.addEventListener("click", selectKeptCandidates);
-  els.clearCandidateSelectionButton.addEventListener("click", clearCandidateSelection);
-  els.addCandidatesButton.addEventListener("click", addSelectedCandidatesToMonth);
   els.jumpTodayButton.addEventListener("click", jumpToToday);
   els.settingsButton.addEventListener("click", openSettings);
   els.settingsForm.addEventListener("submit", saveSettingsFromDialog);
-  els.photoInput.addEventListener("change", importPhotos);
+  els.photoInput.addEventListener("change", importStockPhotos);
   els.photoModeButton.addEventListener("click", () => setEditMode("photo"));
   els.frameModeButton.addEventListener("click", () => setEditMode("frame"));
   els.zoomInput.addEventListener("input", updateSelectedZoom);
@@ -357,10 +344,11 @@ window.onAndroidSharedImage = payload => {
 window.onAndroidSharedImagesFinished = async count => {
   if (!count) return;
   await state.nativeIngestChain;
-  state.candidateFilter = "active";
-  if (state.dbReady && state.lastIncomingMonth) await openCandidateView(state.lastIncomingMonth);
-  renderCandidateBadge();
-  showToast(`${count}枚を候補箱へ追加しました`);
+  renderStockBadge();
+  // 日常の登録は「貯めるだけ」。画面は動かさず、いま開いている月だけ更新する。
+  if (!els.editorView.hidden) renderStock(); else renderTimeline();
+  const parsed = parseMonthValue(state.lastIncomingMonth || "");
+  showToast(parsed ? `${count}枚を${parsed.year}年${parsed.month}月のストックへ追加しました` : `${count}枚をストックへ追加しました`);
 };
 
 window.onAndroidCalendarEvents = async result => {
@@ -377,7 +365,7 @@ window.onAndroidCalendarEvents = async result => {
   const value = { key, events: Array.isArray(result.events) ? result.events : [], syncedAt: new Date().toISOString() };
   state.calendarMonths.set(key, value);
   if (state.db) await putCalendarMonth(value);
-  if (!els.candidateView.hidden && state.candidateMonthKey === key) renderCandidateView();
+  if (!els.editorView.hidden && state.record?.key === key) renderStock();
   showToast(result.error || `${value.events.length}件の予定を読み込みました`, result.error ? 4200 : 2400);
 };
 
@@ -410,7 +398,6 @@ window.androidHandleBack = () => {
   if (els.settingsDialog.open) { els.settingsDialog.close(); return true; }
   if (els.printDialog.open) { els.printDialog.close(); return true; }
   if (!els.editorView.hidden) { closeEditor(); return true; }
-  if (!els.candidateView.hidden) { closeCandidateView(); return true; }
   return false;
 };
 
@@ -446,7 +433,10 @@ function renderTimeline() {
 function makeTimelineCell(year, month) {
   const key = monthKey(year, month);
   const record = state.records.get(key);
-  const candidateCount = [...state.candidates.values()].filter(candidate => candidate.monthKey === key && candidate.status !== "excluded").length;
+  const pendingStock = [...state.candidates.values()].filter(candidate =>
+    candidate.monthKey === key
+    && candidate.status !== "excluded"
+    && !record?.photos?.some(photo => photo.candidateId === candidate.id)).length;
   const button = document.createElement("button");
   button.type = "button";
   button.className = `month-cell${record?.photos?.length ? "" : " empty"}${year === currentDate.getFullYear() && month === currentDate.getMonth() + 1 ? " current" : ""}`;
@@ -455,8 +445,9 @@ function makeTimelineCell(year, month) {
   button.setAttribute("aria-label", `${year}年${month}月を編集`);
   if (record?.photos?.length) {
     const first = [...record.photos].sort((a, b) => a.z - b.z)[0];
+    const firstBlob = photoBlob(first);
     const image = document.createElement("img");
-    const url = URL.createObjectURL(first.blob);
+    const url = URL.createObjectURL(firstBlob);
     state.gridUrls.push(url);
     image.src = url;
     image.alt = "";
@@ -470,11 +461,17 @@ function makeTimelineCell(year, month) {
   const footer = document.createElement("span");
   footer.className = "cell-footer";
   const title = document.createElement("strong");
-  title.textContent = record?.events?.trim().replace(/\n/g, "／") || (candidateCount ? `候補 ${candidateCount}枚` : `${month}月`);
+  title.textContent = record?.events?.trim().replace(/\n/g, "／") || `${month}月`;
   const status = document.createElement("i");
   status.className = `cell-status ${record?.status || ""}`;
   footer.append(title, status);
   button.append(footer);
+  if (pendingStock) {
+    const stock = document.createElement("span");
+    stock.className = "cell-stock";
+    stock.textContent = `未整理 ${pendingStock}`;
+    button.append(stock);
+  }
   button.addEventListener("click", () => openEditor(year, month));
   return button;
 }
@@ -493,13 +490,13 @@ function jumpToToday() {
 async function openEditor(year, month) {
   await saveRecordNow();
   clearEditorImages();
-  clearCandidateUrls();
+  clearStockUrls();
   const key = monthKey(year, month);
   state.record = state.records.get(key) || makeRecord(year, month);
   state.selectedId = state.record.photos[0]?.id || null;
   state.editMode = "photo";
+  state.candidateMonthKey = key;
   els.timelineView.hidden = true;
-  els.candidateView.hidden = true;
   els.editorView.hidden = false;
   window.scrollTo({ top: 0, behavior: "instant" });
   els.yearInput.value = String(year);
@@ -516,17 +513,18 @@ async function closeEditor() {
   if (els.editorView.hidden) return;
   await saveRecordNow();
   clearEditorImages();
+  clearStockUrls();
   state.record = null;
   state.selectedId = null;
   els.editorView.hidden = true;
   els.timelineView.hidden = false;
   renderTimeline();
+  renderStockBadge();
   window.scrollTo({ top: 0, behavior: "instant" });
 }
 
 async function goHome() {
   if (!els.editorView.hidden) return closeEditor();
-  if (!els.candidateView.hidden) return closeCandidateView();
 }
 
 function monthForTimestamp(value) {
@@ -552,221 +550,212 @@ function monthRange(key) {
   };
 }
 
-async function openCandidateView(key = monthKey(currentDate.getFullYear(), currentDate.getMonth() + 1)) {
-  const parsed = parseMonthValue(key) || parseMonthValue(monthKey(currentDate.getFullYear(), currentDate.getMonth() + 1));
-  if (!els.editorView.hidden) {
-    await saveRecordNow();
-    clearEditorImages();
-    state.record = null;
-    state.selectedId = null;
+/* ---------------- stock (旧「候補箱」) ----------------
+ * ストックは月カードと同じ画面に置き、採用は取り消せるトグルにする。
+ * 採用した写真は候補を消さず candidateId で参照するので、画像は一度しか持たない。
+ */
+
+// updateEditorUi() redraws the stock on every interaction, so object URLs are kept
+// per candidate instead of being rebuilt (and revoked out from under <img>) each time.
+function stockUrl(candidate) {
+  let url = state.stockUrls.get(candidate.id);
+  if (!url) {
+    url = URL.createObjectURL(candidate.blob);
+    state.stockUrls.set(candidate.id, url);
   }
-  state.candidateMonthKey = parsed.key;
-  state.selectedCandidates.clear();
-  els.candidateMonthInput.value = parsed.key;
-  els.timelineView.hidden = true;
-  els.editorView.hidden = true;
-  els.candidateView.hidden = false;
-  renderCandidateView();
-  window.scrollTo({ top: 0, behavior: "instant" });
+  return url;
 }
 
-function closeCandidateView() {
-  if (els.candidateView.hidden) return;
-  clearCandidateUrls();
-  state.selectedCandidates.clear();
-  els.candidateView.hidden = true;
-  els.timelineView.hidden = false;
-  renderTimeline();
-  renderCandidateBadge();
-  window.scrollTo({ top: 0, behavior: "instant" });
+function releaseStockUrl(id) {
+  const url = state.stockUrls.get(id);
+  if (url) {
+    URL.revokeObjectURL(url);
+    state.stockUrls.delete(id);
+  }
 }
 
-function changeCandidateMonth() {
-  const parsed = parseMonthValue(els.candidateMonthInput.value);
-  if (!parsed) return;
-  state.candidateMonthKey = parsed.key;
-  state.selectedCandidates.clear();
-  renderCandidateView();
+function clearStockUrls() {
+  state.stockUrls.forEach(URL.revokeObjectURL);
+  state.stockUrls.clear();
 }
 
-function clearCandidateUrls() {
-  state.candidateUrls.forEach(URL.revokeObjectURL);
-  state.candidateUrls = [];
-}
-
-function renderCandidateBadge() {
-  const count = [...state.candidates.values()].filter(item => item.status !== "excluded").length;
-  els.candidateBadge.textContent = count > 99 ? "99+" : String(count);
-}
-
-function candidatesForCurrentMonth() {
+/** 採用済みかどうかに関わらず、その月のストック全部（外したものを除く）。 */
+function stockForMonth(key) {
   return [...state.candidates.values()]
-    .filter(candidate => candidate.monthKey === state.candidateMonthKey)
+    .filter(candidate => candidate.monthKey === key && candidate.status !== "excluded")
     .sort((a, b) => Number(a.takenAt || 0) - Number(b.takenAt || 0));
 }
 
-function filteredCandidates(candidates) {
-  if (state.candidateFilter === "all") return candidates;
-  if (state.candidateFilter === "active") return candidates.filter(candidate => candidate.status !== "excluded");
-  return candidates.filter(candidate => candidate.status === state.candidateFilter);
+function adoptedCandidateIds() {
+  const ids = new Set();
+  for (const photo of state.record?.photos || []) if (photo.candidateId) ids.add(photo.candidateId);
+  return ids;
 }
 
-function renderCandidateView() {
-  clearCandidateUrls();
-  const parsed = parseMonthValue(state.candidateMonthKey);
-  if (!parsed) return;
-  els.candidateMonthInput.value = parsed.key;
-  const all = candidatesForCurrentMonth();
-  const visible = filteredCandidates(all);
-  els.candidateMonthCount.textContent = `${all.length}枚`;
-  els.candidateGrid.replaceChildren();
-  for (const candidate of visible) els.candidateGrid.append(makeCandidateCard(candidate));
-  els.candidateEmpty.hidden = visible.length > 0;
-  $$('[data-candidate-filter]').forEach(button => button.classList.toggle("active", button.dataset.candidateFilter === state.candidateFilter));
+function photoForCandidate(candidateId) {
+  return state.record?.photos.find(photo => photo.candidateId === candidateId) || null;
+}
+
+/** 未整理＝どの月カードにも採用されていない、外してもいないストック。 */
+function renderStockBadge() {
+  let count = 0;
+  for (const candidate of state.candidates.values()) {
+    if (candidate.status === "excluded") continue;
+    const record = state.records.get(candidate.monthKey);
+    const adopted = record?.photos?.some(photo => photo.candidateId === candidate.id);
+    if (!adopted) count += 1;
+  }
+  els.stockBadge.textContent = count > 99 ? "99+" : String(count);
+}
+
+function renderStock() {
+  if (!state.record) return;
+  const stock = stockForMonth(state.record.key);
+  const adopted = adoptedCandidateIds();
+  els.stockCount.textContent = adopted.size ? `${stock.length}枚中 ${adopted.size}枚を採用` : `${stock.length}枚`;
+  els.stockGrid.replaceChildren();
+  for (const candidate of stock) els.stockGrid.append(makeStockThumb(candidate, adopted.has(candidate.id)));
+  els.stockEmpty.hidden = stock.length > 0;
   renderCalendarEvents();
-  updateCandidateSelectionUi();
 }
 
-function makeCandidateCard(candidate) {
-  const article = document.createElement("article");
-  article.className = `candidate-card${state.selectedCandidates.has(candidate.id) ? " selected" : ""}`;
-  const imageWrap = document.createElement("div");
-  imageWrap.className = "candidate-image-wrap";
+function makeStockThumb(candidate, isAdopted) {
+  const wrap = document.createElement("div");
+  wrap.className = `stock-thumb${isAdopted ? " adopted" : ""}`;
+
+  const pick = document.createElement("button");
+  pick.type = "button";
   const image = document.createElement("img");
-  const url = URL.createObjectURL(candidate.blob);
-  state.candidateUrls.push(url);
-  image.src = url;
-  image.alt = candidate.name || "写真候補";
-  const check = document.createElement("button");
-  check.type = "button";
-  check.className = "candidate-check";
-  check.textContent = state.selectedCandidates.has(candidate.id) ? "✓" : "";
-  check.setAttribute("aria-label", "月カードへ追加する写真として選択");
-  const toggle = () => toggleCandidateSelection(candidate.id);
-  check.addEventListener("click", toggle);
-  image.addEventListener("click", toggle);
-  imageWrap.append(image, check);
+  image.src = stockUrl(candidate);
+  image.alt = candidate.name || "ストック写真";
+  pick.append(image);
+  pick.setAttribute("aria-label", isAdopted
+    ? `${candidate.name || "写真"}を選択して調整`
+    : `${candidate.name || "写真"}を採用`);
+  pick.addEventListener("click", () => isAdopted ? selectAdoptedPhoto(candidate.id) : adoptCandidate(candidate.id));
+  wrap.append(pick);
 
-  const info = document.createElement("div");
-  info.className = "candidate-info";
-  const date = new Date(Number(candidate.takenAt) || Date.now());
-  const dateLine = document.createElement("div");
-  dateLine.className = "candidate-date";
-  const dateLabel = document.createElement("b");
-  dateLabel.textContent = `${date.getMonth() + 1}/${date.getDate()} ${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
-  const status = document.createElement("span");
-  status.textContent = candidateStatusLabel(candidate.status);
-  dateLine.append(dateLabel, status);
-
-  const eventSelect = document.createElement("select");
-  eventSelect.setAttribute("aria-label", "関連する出来事");
-  const none = document.createElement("option");
-  none.value = "";
-  none.textContent = "出来事を選択（任意）";
-  eventSelect.append(none);
-  const events = state.calendarMonths.get(candidate.monthKey)?.events || [];
-  if (candidate.eventKey && !events.some(event => event.key === candidate.eventKey)) {
-    const option = document.createElement("option");
-    option.value = candidate.eventKey;
-    option.textContent = candidate.eventTitle || "関連する出来事";
-    eventSelect.append(option);
+  if (isAdopted) {
+    const photo = photoForCandidate(candidate.id);
+    const order = [...state.record.photos].sort((a, b) => a.z - b.z).findIndex(item => item.candidateId === candidate.id);
+    const badge = document.createElement("button");
+    badge.type = "button";
+    badge.className = "stock-order";
+    badge.textContent = String(order + 1);
+    badge.setAttribute("aria-label", "採用を取り消す");
+    badge.title = "採用を取り消す";
+    badge.addEventListener("click", event => { event.stopPropagation(); unadoptCandidate(candidate.id); });
+    wrap.append(badge);
+    if (photo && photo.id === state.selectedId) wrap.classList.add("selected");
   }
-  for (const event of events) {
-    const option = document.createElement("option");
-    option.value = event.key;
-    option.textContent = `${shortDay(event.day)} ${event.title}`;
-    eventSelect.append(option);
+
+  const drop = document.createElement("button");
+  drop.type = "button";
+  drop.className = "stock-drop";
+  drop.textContent = "×";
+  drop.setAttribute("aria-label", "ストックから外す");
+  drop.title = "ストックから外す";
+  drop.addEventListener("click", event => { event.stopPropagation(); excludeCandidate(candidate.id); });
+  wrap.append(drop);
+
+  if (candidate.eventTitle) {
+    const tag = document.createElement("span");
+    tag.className = "stock-event";
+    tag.textContent = candidate.eventTitle;
+    wrap.append(tag);
   }
-  eventSelect.value = candidate.eventKey || "";
-  eventSelect.addEventListener("change", async () => {
-    const event = events.find(item => item.key === eventSelect.value);
-    candidate.eventKey = event?.key || "";
-    candidate.eventTitle = event?.title || "";
-    candidate.eventStart = event?.start || 0;
-    await putCandidate(candidate);
-  });
+  return wrap;
+}
 
-  const actions = document.createElement("div");
-  actions.className = "candidate-status-actions";
-  for (const [value, label] of [["keep", "残す"], ["hold", "保留"], ["excluded", "外す"]]) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.dataset.status = value;
-    button.textContent = label;
-    button.classList.toggle("active", candidate.status === value);
-    button.addEventListener("click", () => updateCandidateStatus(candidate.id, value));
-    actions.append(button);
+function selectAdoptedPhoto(candidateId) {
+  const photo = photoForCandidate(candidateId);
+  if (!photo) return;
+  state.selectedId = photo.id;
+  updateEditorUi();
+  renderCanvas();
+}
+
+async function adoptCandidate(candidateId) {
+  const candidate = state.candidates.get(candidateId);
+  if (!candidate || !state.record) return;
+  if (state.record.photos.length >= 24) {
+    showToast("1か月につき24枚まで採用できます");
+    return;
   }
-  const remove = document.createElement("button");
-  remove.type = "button";
-  remove.className = "candidate-delete";
-  remove.textContent = "候補から削除";
-  remove.addEventListener("click", () => removeCandidate(candidate.id));
-  info.append(dateLine, eventSelect, actions, remove);
-  article.append(imageWrap, info);
-  return article;
-}
-
-function candidateStatusLabel(status) {
-  return status === "keep" ? "残す" : status === "excluded" ? "外す" : "保留";
-}
-
-function shortDay(day) {
-  const parts = String(day || "").split("-");
-  return parts.length === 3 ? `${Number(parts[1])}/${Number(parts[2])}` : "";
-}
-
-function toggleCandidateSelection(id) {
-  if (state.selectedCandidates.has(id)) state.selectedCandidates.delete(id);
-  else state.selectedCandidates.add(id);
-  renderCandidateView();
-}
-
-function updateCandidateSelectionUi() {
-  for (const id of [...state.selectedCandidates]) {
-    const candidate = state.candidates.get(id);
-    if (!candidate || candidate.monthKey !== state.candidateMonthKey) state.selectedCandidates.delete(id);
+  const photo = {
+    id: `candidate-${candidate.id}`,
+    candidateId: candidate.id,
+    name: candidate.name,
+    x: 6, y: 6, w: 588, h: 788,
+    zoom: 1, offsetX: 0, offsetY: 0,
+    z: state.record.photos.length
+  };
+  state.record.photos.push(photo);
+  try {
+    state.images.set(photo.id, await loadImageBlob(candidate.blob));
+  } catch (error) {
+    console.warn(error);
   }
-  const count = state.selectedCandidates.size;
-  els.candidateSelectionCount.textContent = `${count}枚選択`;
-  els.addCandidatesButton.disabled = count === 0;
+  if (candidate.eventTitle) addEventName(candidate.eventTitle);
+  state.selectedId = photo.id;
+  if (state.record.manualLayout) showToast("手動で配置した月です。「自動」で並べ直せます。", 3200);
+  else applyLayout("auto", false);
+  markDirty();
+  updateEditorUi();
+  renderCanvas();
 }
 
-async function updateCandidateStatus(id, status) {
-  const candidate = state.candidates.get(id);
+async function unadoptCandidate(candidateId) {
+  if (!state.record) return;
+  const index = state.record.photos.findIndex(photo => photo.candidateId === candidateId);
+  if (index < 0) return;
+  const [removed] = state.record.photos.splice(index, 1);
+  const entry = state.images.get(removed.id);
+  if (entry) { URL.revokeObjectURL(entry.url); state.images.delete(removed.id); }
+  if (state.selectedId === removed.id) state.selectedId = state.record.photos[0]?.id || null;
+  state.record.photos.sort((a, b) => a.z - b.z).forEach((photo, order) => { photo.z = order; });
+  if (state.record.photos.length && !state.record.manualLayout) applyLayout("auto", false);
+  markDirty();
+  updateEditorUi();
+  renderCanvas();
+}
+
+async function excludeCandidate(candidateId) {
+  const candidate = state.candidates.get(candidateId);
   if (!candidate) return;
-  candidate.status = status;
+  await unadoptCandidate(candidateId);
+  candidate.status = "excluded";
   candidate.updatedAt = new Date().toISOString();
   await putCandidate(candidate);
-  renderCandidateView();
-  renderCandidateBadge();
+  releaseStockUrl(candidateId);
+  renderStock();
+  renderStockBadge();
+  showToast("ストックから外しました");
 }
 
-async function removeCandidate(id) {
-  const candidate = state.candidates.get(id);
-  if (!candidate || !confirm("この写真を候補箱から削除しますか？")) return;
-  await deleteCandidate(id);
-  state.candidates.delete(id);
-  state.selectedCandidates.delete(id);
-  renderCandidateView();
-  renderCandidateBadge();
+function addEventName(title) {
+  const names = new Set((state.record.events || "").split(/[\n／]/).map(value => value.trim()).filter(Boolean));
+  names.add(String(title).trim());
+  state.record.events = [...names].join("／");
+  els.eventsInput.value = state.record.events;
+  updateLabelPreview();
 }
 
-function setCandidateFilter(filter) {
-  state.candidateFilter = filter;
-  renderCandidateView();
-}
-
-function selectKeptCandidates() {
-  for (const candidate of candidatesForCurrentMonth()) {
-    if (candidate.status === "keep") state.selectedCandidates.add(candidate.id);
+/** ヘッダーの「未整理」から、いちばん新しい未採用ストックのある月へ飛ぶ。 */
+async function jumpToPendingStock() {
+  let newest = null;
+  for (const candidate of state.candidates.values()) {
+    if (candidate.status === "excluded") continue;
+    const record = state.records.get(candidate.monthKey);
+    if (record?.photos?.some(photo => photo.candidateId === candidate.id)) continue;
+    if (!newest || Number(candidate.takenAt || 0) > Number(newest.takenAt || 0)) newest = candidate;
   }
-  renderCandidateView();
-}
-
-function clearCandidateSelection() {
-  state.selectedCandidates.clear();
-  renderCandidateView();
+  if (!newest) {
+    showToast("未整理のストックはありません");
+    return;
+  }
+  const parsed = parseMonthValue(newest.monthKey);
+  if (parsed) await openEditor(parsed.year, parsed.month);
 }
 
 function renderCalendarEvents() {
@@ -842,31 +831,35 @@ function searchPhotosForEvent(event) {
     event.title || "", event.key || "", Number(event.start) || day);
 }
 
-async function importCandidatePhotos(event) {
+async function importStockPhotos(event) {
   const files = [...event.target.files].filter(file => file.type.startsWith("image/"));
   event.target.value = "";
-  if (!files.length) return;
-  showToast(`${files.length}枚を候補箱へ追加しています…`, 5000);
-  let added = 0;
-  let lastMonth = state.candidateMonthKey;
+  if (!files.length || !state.record) return;
+  const monthStart = monthRange(state.record.key)?.start || Date.now();
+  showToast(`${files.length}枚を取り込んでいます…`, 5000);
+  const added = [];
   for (const file of files.slice(0, 60)) {
     try {
       const blob = await compressImage(file);
-      const takenAt = Number(file.lastModified) || (monthRange(state.candidateMonthKey)?.start + 12 * 60 * 60 * 1000) || Date.now();
+      // 選び直した写真も必ずストックへ入れる。採用は取り消せるトグルなので入口は1本でよい。
+      const takenAt = Number(file.lastModified) || (monthStart + 12 * 60 * 60 * 1000);
       const candidate = makeCandidate({ name: file.name, blob, takenAt });
+      candidate.monthKey = state.record.key;
       await putCandidate(candidate);
       state.candidates.set(candidate.id, candidate);
-      lastMonth = candidate.monthKey;
-      added += 1;
+      added.push(candidate);
     } catch (error) {
       console.warn(error);
+      showToast(`${file.name}を読み込めませんでした。`);
     }
   }
-  state.candidateMonthKey = lastMonth;
-  els.candidateMonthInput.value = lastMonth;
-  renderCandidateView();
-  renderCandidateBadge();
-  showToast(`${added}枚を候補箱へ追加しました`);
+  const room = Math.max(0, 24 - state.record.photos.length);
+  for (const candidate of added.slice(0, room)) await adoptCandidate(candidate.id);
+  renderStock();
+  renderStockBadge();
+  showToast(added.length > room
+    ? `${added.length}枚を追加し、${room}枚を採用しました（採用は24枚まで）`
+    : `${added.length}枚を追加して採用しました`);
 }
 
 function makeCandidate({ id, name, blob, takenAt, eventKey = "", eventTitle = "", eventStart = 0, status = "hold", createdAt }) {
@@ -910,51 +903,20 @@ async function ingestNativeImage(payload, openView = true) {
   });
   await putCandidate(candidate);
   state.candidates.set(candidate.id, candidate);
-  renderCandidateBadge();
-  if (openView) await openCandidateView(candidate.monthKey);
+  renderStockBadge();
+  if (openView && !els.editorView.hidden && state.record?.key === candidate.monthKey) renderStock();
 }
 
-async function addSelectedCandidatesToMonth() {
-  const parsed = parseMonthValue(state.candidateMonthKey);
-  if (!parsed) return;
-  const selected = [...state.selectedCandidates]
-    .map(id => state.candidates.get(id))
-    .filter(candidate => candidate?.monthKey === parsed.key);
-  if (!selected.length) return;
-  const record = state.records.get(parsed.key) || makeRecord(parsed.year, parsed.month);
-  const available = Math.max(0, 24 - (record.photos?.length || 0));
-  if (!available) {
-    showToast("この月のカードにはすでに24枚あります");
-    return;
-  }
-  const chosen = selected.slice(0, available);
-  const startZ = record.photos.length;
-  chosen.forEach((candidate, index) => record.photos.push({
-    id: `candidate-${candidate.id}`,
-    name: candidate.name,
-    blob: candidate.blob,
-    x: 6, y: 6, w: 588, h: 788,
-    zoom: 1, offsetX: 0, offsetY: 0,
-    z: startZ + index
-  }));
-  const eventNames = new Set((record.events || "").split(/[\n／]/).map(value => value.trim()).filter(Boolean));
-  chosen.forEach(candidate => { if (candidate.eventTitle) eventNames.add(candidate.eventTitle.trim()); });
-  record.events = [...eventNames].join("／");
-  record.status = "draft";
-  record.updatedAt = new Date().toISOString();
-  await putMonth(record);
-  state.records.set(record.key, record);
-  for (const candidate of chosen) {
-    await deleteCandidate(candidate.id);
-    state.candidates.delete(candidate.id);
-  }
-  state.selectedCandidates.clear();
-  renderCandidateBadge();
-  await openEditor(parsed.year, parsed.month);
-  applyLayout("auto", false);
-  await saveRecordNow();
-  showToast(`${chosen.length}枚を${parsed.year}年${parsed.month}月へ追加しました`);
-  if (chosen.length < selected.length) showToast(`上限24枚のため${chosen.length}枚だけ追加しました`, 4200);
+/**
+ * 月カードの写真の画像データを返す。
+ * ストックから採用した写真は blob を持たず candidateId で候補を指すので、
+ * 画像はストック側の1つだけになる（旧データは photo.blob をそのまま使う）。
+ */
+function photoBlob(photo) {
+  if (!photo) return null;
+  if (photo.blob) return photo.blob;
+  if (photo.candidateId) return state.candidates.get(photo.candidateId)?.blob || null;
+  return null;
 }
 
 function clearEditorImages() {
@@ -976,7 +938,9 @@ async function loadEditorImages() {
   if (!state.record) return;
   for (const photo of state.record.photos) {
     try {
-      state.images.set(photo.id, await loadImageBlob(photo.blob));
+      const blob = photoBlob(photo);
+      if (!blob) continue;
+      state.images.set(photo.id, await loadImageBlob(blob));
     } catch (error) {
       console.warn(error);
     }
@@ -1007,7 +971,7 @@ function updateEditorUi() {
   els.markPrintedButton.textContent = state.record.status === "printed" ? "印刷済みを解除" : "印刷済みにする";
   els.tepraModelLabel.textContent = state.settings.tepraModel;
   updateLabelPreview();
-  renderPhotoStrip();
+  renderStock();
 }
 
 function statusText(status) {
@@ -1019,29 +983,6 @@ function updateLabelPreview() {
   const events = els.labelPreview.querySelector("span");
   date.textContent = currentDateLabel() || "年月";
   events.textContent = state.record?.events?.trim().replace(/\n/g, "／") || "出来事";
-}
-
-function renderPhotoStrip() {
-  els.photoStrip.replaceChildren();
-  if (!state.record) return;
-  [...state.record.photos].sort((a, b) => a.z - b.z).forEach((photo, index) => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = `photo-thumb${photo.id === state.selectedId ? " active" : ""}`;
-    button.setAttribute("aria-label", `写真${index + 1}を選択`);
-    const image = document.createElement("img");
-    image.src = state.images.get(photo.id)?.url || "";
-    image.alt = "";
-    const number = document.createElement("span");
-    number.textContent = String(index + 1);
-    button.append(image, number);
-    button.addEventListener("click", () => {
-      state.selectedId = photo.id;
-      updateEditorUi();
-      renderCanvas();
-    });
-    els.photoStrip.append(button);
-  });
 }
 
 function selectedPhoto() {
@@ -1138,47 +1079,6 @@ async function compressImage(file) {
   return new Promise((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error("画像を圧縮できませんでした")), "image/jpeg", .88));
 }
 
-async function importPhotos(event) {
-  if (!state.record) return;
-  const files = [...event.target.files].filter(file => file.type.startsWith("image/"));
-  event.target.value = "";
-  if (!files.length) return;
-  const available = Math.max(0, 24 - state.record.photos.length);
-  const selectedFiles = files.slice(0, available);
-  if (!selectedFiles.length) {
-    showToast("1か月につき24枚まで追加できます。");
-    return;
-  }
-  showToast(`${selectedFiles.length}枚の写真を準備しています…`, 5000);
-  const added = [];
-  for (const file of selectedFiles) {
-    try {
-      const blob = await compressImage(file);
-      const id = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-      const photo = {
-        id, name: file.name, blob,
-        x: 6, y: 6, w: 588, h: 788,
-        zoom: 1, offsetX: 0, offsetY: 0,
-        z: state.record.photos.length + added.length
-      };
-      added.push(photo);
-      state.images.set(id, await loadImageBlob(blob));
-    } catch (error) {
-      console.warn(error);
-      showToast(`${file.name}を読み込めませんでした。`);
-    }
-  }
-  state.record.photos.push(...added);
-  if (added.length) {
-    state.selectedId = added[0].id;
-    applyLayout("auto", false);
-    updateEditorUi();
-    renderCanvas();
-    markDirty();
-    showToast(`${added.length}枚を追加しました`);
-  }
-}
-
 function applyLayout(type, announce = true) {
   if (!state.record?.photos.length) {
     if (announce) showToast("先に写真を追加してください");
@@ -1217,6 +1117,7 @@ function applyLayout(type, announce = true) {
       w: cellW, h: cellH, zoom: 1, offsetX: 0, offsetY: 0, z: index
     }));
   }
+  if (announce && state.record) state.record.manualLayout = false;
   updateEditorUi();
   renderCanvas();
   markDirty();
@@ -1328,7 +1229,7 @@ function canvasPointerDown(event) {
   if (!hit) return;
   state.selectedId = hit.id;
   const nearHandle = state.editMode === "frame" && point.x >= hit.x + hit.w - 38 && point.y >= hit.y + hit.h - 38;
-  state.pointer = { id: event.pointerId, action: nearHandle ? "resize" : state.editMode === "frame" ? "move" : "pan", last: point };
+  state.pointer = { id: event.pointerId, action: nearHandle ? "resize" : state.editMode === "frame" ? "move" : "pan", last: point, moved: false };
   els.canvas.setPointerCapture(event.pointerId);
   updateEditorUi();
   renderCanvas();
@@ -1342,6 +1243,7 @@ function canvasPointerMove(event) {
   const point = pointOnCanvas(event);
   const dx = point.x - state.pointer.last.x;
   const dy = point.y - state.pointer.last.y;
+  if ((dx || dy) && state.pointer.action !== "pan") state.pointer.moved = true;
   if (state.pointer.action === "pan") {
     photo.offsetX += dx;
     photo.offsetY += dy;
@@ -1362,6 +1264,7 @@ function canvasPointerMove(event) {
 function canvasPointerUp(event) {
   if (!state.pointer || state.pointer.id !== event.pointerId) return;
   try { els.canvas.releasePointerCapture(event.pointerId); } catch {}
+  if (state.pointer.moved && state.record) state.record.manualLayout = true;
   state.pointer = null;
   saveRecordNow();
 }
@@ -1409,6 +1312,12 @@ function resetSelectedPhoto() {
 function deleteSelectedPhoto() {
   const photo = selectedPhoto();
   if (!photo || !state.record) return;
+  if (photo.candidateId) {
+    // ストック由来なら「採用を取り消す」だけ。写真そのものはストックに残す。
+    unadoptCandidate(photo.candidateId);
+    renderStock();
+    return;
+  }
   const index = state.record.photos.indexOf(photo);
   state.record.photos.splice(index, 1);
   const entry = state.images.get(photo.id);
@@ -1431,7 +1340,7 @@ function shiftSelectedLayer(direction) {
   ordered.splice(targetIndex, 0, photo);
   ordered.forEach((item, index) => { item.z = index; });
   renderCanvas();
-  renderPhotoStrip();
+  renderStock();
   markDirty();
 }
 
@@ -1605,7 +1514,7 @@ function openPrintDialog(preselectKey) {
     checkbox.checked = preselectKey ? record.key === preselectKey : record.status !== "printed";
     const first = [...record.photos].sort((a, b) => a.z - b.z)[0];
     const image = document.createElement("img");
-    const url = URL.createObjectURL(first.blob);
+    const url = URL.createObjectURL(photoBlob(first));
     state.printUrls.push(url);
     image.src = url;
     image.alt = "";
@@ -1647,7 +1556,10 @@ async function imagesForRecord(record) {
   if (state.record?.key === record.key && state.images.size) return { map: state.images, cleanup: () => {} };
   const map = new Map();
   for (const photo of record.photos) {
-    try { map.set(photo.id, await loadImageBlob(photo.blob)); } catch {}
+    try {
+      const blob = photoBlob(photo);
+      if (blob) map.set(photo.id, await loadImageBlob(blob));
+    } catch {}
   }
   return { map, cleanup: () => map.forEach(entry => URL.revokeObjectURL(entry.url)) };
 }
@@ -1729,6 +1641,11 @@ async function exportBackup() {
       const photos = [];
       for (const photo of record.photos || []) {
         const { blob, ...metadata } = photo;
+        if (metadata.candidateId && !blob) {
+          // 画像はストック側に1つだけあるので、ここでは参照だけ書き出す。
+          photos.push(metadata);
+          continue;
+        }
         if (native) {
           const blobPath = `photos/months/${String(++photoIndex).padStart(5, "0")}.jpg`;
           photos.push({ ...metadata, blobPath });
@@ -1814,9 +1731,13 @@ async function restoreBackupPayload(payload, photoResolver = null) {
     if (!year || month < 1 || month > 12 || !Array.isArray(raw.photos)) continue;
     const photos = [];
     for (const rawPhoto of raw.photos) {
-      const dataUrl = typeof rawPhoto.blob === "string" ? rawPhoto.blob : photoResolver?.(rawPhoto.blobPath);
-      if (typeof dataUrl !== "string" || !dataUrl.startsWith("data:image/")) throw new Error("バックアップ内の写真が不足しています");
       const { blob, blobPath, ...metadata } = rawPhoto;
+      if (metadata.candidateId && blob === undefined && blobPath === undefined) {
+        photos.push(metadata);
+        continue;
+      }
+      const dataUrl = typeof blob === "string" ? blob : photoResolver?.(blobPath);
+      if (typeof dataUrl !== "string" || !dataUrl.startsWith("data:image/")) throw new Error("バックアップ内の写真が不足しています");
       photos.push({ ...metadata, blob: dataUrlToBlob(dataUrl) });
     }
     const record = { ...makeRecord(year, month), ...raw, key: monthKey(year, month), year, month, photos };
@@ -1847,17 +1768,16 @@ async function restoreBackupPayload(payload, photoResolver = null) {
   state.settings = restoredSettings;
   await replaceAllData(restoredRecords, restoredCandidates, restoredCalendar, state.settings);
   clearEditorImages();
-  clearCandidateUrls();
+  clearStockUrls();
   state.record = null;
   state.records = new Map(restoredRecords.map(record => [record.key, record]));
   state.candidates = new Map(restoredCandidates.map(candidate => [candidate.id, candidate]));
   state.calendarMonths = new Map(restoredCalendar.map(value => [value.key, value]));
-  state.selectedCandidates.clear();
+  state.selectedId = null;
   els.editorView.hidden = true;
-  els.candidateView.hidden = true;
   els.timelineView.hidden = false;
   renderTimeline();
-  renderCandidateBadge();
+  renderStockBadge();
   showToast("バックアップを復元しました");
   return true;
 }

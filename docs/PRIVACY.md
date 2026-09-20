@@ -2,7 +2,7 @@
 
 ## 保存場所
 
-- 月カード、候補箱、予定のコピー、設定はアプリ内のIndexedDBへ保存します。
+- 月カード、ストック、予定のコピー、設定はアプリ内のIndexedDBへ保存します。
 - 完成画像は`Pictures/OmoideTimeline`へ保存します。
 - バックアップは`Downloads/OmoideTimeline`へ保存します。
 - 本アプリ自身はクラウド同期や解析送信を行いません。

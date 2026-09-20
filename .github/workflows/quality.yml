@@ -39,6 +39,12 @@ jobs:
           node --check app/src/main/assets/app.js
           node --check app/src/main/assets/sw.js
 
+      - name: Run the WebView UI smoke test
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+          node tools/smoke-web.mjs
+
       - name: Check XML syntax
         run: |
           python3 - <<'PY'

@@ -21,7 +21,7 @@
       </button>
       <div class="app-actions">
         <span class="local-badge" title="写真は外部へ送信されません"><span aria-hidden="true">●</span> 端末内保存</span>
-        <button id="candidateButton" class="button inbox-nav" type="button">候補箱 <span id="candidateBadge" class="count-badge">0</span></button>
+        <button id="stockJumpButton" class="button inbox-nav" type="button">未整理 <span id="stockBadge" class="count-badge">0</span></button>
         <button id="installButton" class="button ghost" type="button" hidden>アプリに追加</button>
         <button id="backupButton" class="button ghost" type="button">バックアップ</button>
         <button id="restoreButton" class="button ghost" type="button">復元</button>
@@ -54,54 +54,6 @@
         <p class="privacy-note">写真と編集内容は、この端末内に保存されます。定期的にバックアップしてください。</p>
       </section>
 
-      <section id="candidateView" class="view candidate-view" hidden aria-labelledby="candidateTitle">
-        <div class="candidate-topbar">
-          <button id="candidateBackButton" class="button ghost back-button" type="button">← 年表へ</button>
-          <div>
-            <p class="eyebrow">MEMORY INBOX</p>
-            <h1 id="candidateTitle">思い出の候補箱</h1>
-          </div>
-        </div>
-
-        <div class="candidate-toolbar panel-card">
-          <label>整理する月<input id="candidateMonthInput" type="month" min="1900-01" max="2200-12"></label>
-          <button id="calendarImportButton" class="button secondary native-candidate-action" type="button">カレンダーを読み込む</button>
-          <button id="monthPhotoSearchButton" class="button secondary native-candidate-action" type="button">この月の写真を探す</button>
-          <label class="button primary file-button candidate-add-button">写真を候補に追加<input id="candidatePhotoInput" type="file" accept="image/*" multiple hidden></label>
-        </div>
-
-        <div class="candidate-layout">
-          <aside class="panel-card event-panel">
-            <div class="panel-heading"><h2>カレンダーの出来事</h2><span id="calendarStatus">未読込</span></div>
-            <p class="candidate-help">端末で同期済みのGoogleカレンダーなどを読み込みます。各予定の日付付近から写真を絞り込めます。</p>
-            <div id="calendarEventList" class="calendar-event-list"></div>
-          </aside>
-
-          <section class="panel-card candidate-photo-panel">
-            <div class="panel-heading"><h2>写真候補</h2><span id="candidateMonthCount">0枚</span></div>
-            <div class="candidate-filters" role="group" aria-label="候補の絞り込み">
-              <button class="active" data-candidate-filter="active" type="button">整理中</button>
-              <button data-candidate-filter="keep" type="button">残す</button>
-              <button data-candidate-filter="hold" type="button">保留</button>
-              <button data-candidate-filter="excluded" type="button">外す</button>
-              <button data-candidate-filter="all" type="button">すべて</button>
-            </div>
-            <div id="candidateGrid" class="candidate-grid"></div>
-            <div id="candidateEmpty" class="candidate-empty">
-              <strong>この月の候補はまだありません</strong>
-              <span>ギャラリーの共有メニューで「おもいで年表」を選ぶか、上のボタンから追加できます。</span>
-            </div>
-          </section>
-        </div>
-
-        <div class="candidate-bottom-bar">
-          <span id="candidateSelectionCount">0枚選択</span>
-          <button id="selectKeptButton" class="button ghost" type="button">「残す」を選択</button>
-          <button id="clearCandidateSelectionButton" class="button ghost" type="button">選択解除</button>
-          <button id="addCandidatesButton" class="button primary" type="button" disabled>選択写真を月カードへ追加</button>
-        </div>
-      </section>
-
       <section id="editorView" class="view editor-view" hidden aria-labelledby="editorTitle">
         <div class="editor-topbar">
           <button id="backButton" class="button ghost back-button" type="button">← 年表へ</button>
@@ -130,21 +82,28 @@
           </div>
 
           <aside class="control-panel" aria-label="編集設定">
-            <section class="panel-card metadata-card">
-              <div class="panel-heading"><h2>年月と出来事</h2><span id="monthStatusPill" class="status-pill draft">編集中</span></div>
-              <div class="month-fields">
-                <label>年<input id="yearInput" type="number" min="1900" max="2200" inputmode="numeric"></label>
-                <label>月<select id="monthInput"></select></label>
+            <section class="panel-card stock-card">
+              <div class="panel-heading"><h2>この月のストック</h2><span id="stockCount">0枚</span></div>
+              <p class="stock-help">タップで<b>採用</b>してすぐ並びます。番号を押すと採用を取り消し、×でストックから外します。</p>
+              <div id="stockGrid" class="stock-grid" aria-label="この月のストック写真"></div>
+              <div id="stockEmpty" class="stock-empty">
+                <strong>この月のストックはまだありません</strong>
+                <span>ギャラリーの共有メニューで「おもいで年表」を選ぶと、撮影した月のストックに貯まります。</span>
               </div>
-              <label>出来事<textarea id="eventsInput" rows="2" placeholder="例：沖縄旅行／りさ誕生日"></textarea></label>
-              <label class="check-row"><input id="overlayDateInput" type="checkbox"><span>年月を写真の右下にも表示</span></label>
+              <details id="gatherPanel" class="gather">
+                <summary>写真を集める</summary>
+                <div class="gather-body">
+                  <label class="button primary wide file-button">写真を選んで追加<input id="photoInput" type="file" accept="image/*" multiple hidden></label>
+                  <button id="monthPhotoSearchButton" class="button secondary wide native-candidate-action" type="button">この月の端末内写真を探す</button>
+                  <button id="calendarImportButton" class="button secondary wide native-candidate-action" type="button">カレンダーの予定を読み込む</button>
+                  <div class="panel-heading compact"><h3>カレンダーの出来事</h3><span id="calendarStatus">未読込</span></div>
+                  <div id="calendarEventList" class="calendar-event-list"></div>
+                </div>
+              </details>
             </section>
 
             <section class="panel-card">
-              <div class="panel-heading"><h2>写真</h2><span id="photoCount">0枚</span></div>
-              <label class="button primary wide file-button">写真を追加<input id="photoInput" type="file" accept="image/*" multiple hidden></label>
-              <button id="openMonthCandidatesButton" class="button secondary wide candidate-shortcut" type="button">この月の候補箱を開く</button>
-              <div id="photoStrip" class="photo-strip" aria-label="追加した写真"></div>
+              <div class="panel-heading"><h2>選んだ写真の調整</h2><span id="photoCount">0枚</span></div>
               <div id="photoControls" class="photo-controls" hidden>
                 <div class="segmented" role="group" aria-label="編集モード">
                   <button id="photoModeButton" class="active" type="button">写真を動かす</button>
@@ -168,6 +127,16 @@
                 <button data-layout="grid2" type="button"><i class="layout-icon two"></i>2列</button>
                 <button data-layout="grid3" type="button"><i class="layout-icon three"></i>3列</button>
               </div>
+            </section>
+
+            <section class="panel-card metadata-card">
+              <div class="panel-heading"><h2>年月と出来事</h2><span id="monthStatusPill" class="status-pill draft">編集中</span></div>
+              <div class="month-fields">
+                <label>年<input id="yearInput" type="number" min="1900" max="2200" inputmode="numeric"></label>
+                <label>月<select id="monthInput"></select></label>
+              </div>
+              <label>出来事<textarea id="eventsInput" rows="2" placeholder="例：沖縄旅行／りさ誕生日"></textarea></label>
+              <label class="check-row"><input id="overlayDateInput" type="checkbox"><span>年月を写真の右下にも表示</span></label>
             </section>
 
             <section class="panel-card tepra-card">

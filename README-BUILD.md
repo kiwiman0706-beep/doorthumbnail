@@ -1,6 +1,6 @@
 # おもいで年表 Android版
 
-家族写真を月ごとのコラージュにまとめるAndroidアプリです。写真共有でためる候補箱、Android端末で同期済みのカレンダー読込、撮影日付付近の写真検索、ZIP一括バックアップ、KING JIM「テプラ」PRO SR5900PへのWi‑Fi直接印刷、公式instax mini Linkアプリへの画像共有に対応します。
+家族写真を月ごとのコラージュにまとめるAndroidアプリです。写真共有でためるストック、Android端末で同期済みのカレンダー読込、撮影日付付近の写真検索、ZIP一括バックアップ、KING JIM「テプラ」PRO SR5900PへのWi‑Fi直接印刷、公式instax mini Linkアプリへの画像共有に対応します。
 
 ## 動作条件
 
@@ -53,7 +53,7 @@ export JAVA_HOME=/path/to/jdk17
 
 ## データ
 
-写真と編集データはWebView内のIndexedDBへ端末内保存されます。APK版1.1.0のバックアップは、月カード、候補箱、カレンダーから取り込んだ予定、設定、アプリ内の圧縮済み写真を1つの `.omoide.zip` にまとめます。旧版およびPWA版の `.omoide.json` も、APK版の「復元」から読み込めます。
+写真と編集データはWebView内のIndexedDBへ端末内保存されます。APK版1.1.0のバックアップは、月カード、ストック、カレンダーから取り込んだ予定、設定、アプリ内の圧縮済み写真を1つの `.omoide.zip` にまとめます。旧版およびPWA版の `.omoide.json` も、APK版の「復元」から読み込めます。
 
 Androidのカレンダーは読み取り専用です。端末のCalendar Providerへ同期済みのGoogleカレンダー等を対象とし、予定を変更・削除しません。
 
